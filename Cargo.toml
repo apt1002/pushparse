@@ -1,0 +1,12 @@
+[package]
+name = "pushparse"
+version = "0.1.0"
+authors = ["Alistair Turnbull"]
+edition = "2021"
+rust-version = "1.71"
+description = "A library for writing push parsers"
+repository = "https://github.com/apt1002/pushparse"
+license-file = "LICENSE.txt"
+keywords = "parser"
+
+[dependencies]
