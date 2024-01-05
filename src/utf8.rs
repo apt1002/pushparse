@@ -1,29 +1,8 @@
 use super::{Parser, E, Push, MaybePush, Wrapper};
 
-/// The meaning of a UTF-8 byte.
-#[derive(Debug, Copy, Clone)]
-struct Meaning {
-    /// A mask indicating which bits of the byte encode the scalar value.
-    mask: u8,
-    
-    /// The number of continuation bytes which should follow this byte.
-    count: u8,
-}
-
-const ASCII: Meaning = Meaning {mask: 0x7f, count: 0};
-const DUMMY: Meaning = Meaning {mask: 0x00, count: 0};
-const NEED1: Meaning = Meaning {mask: 0x1f, count: 1};
-const NEED2: Meaning = Meaning {mask: 0x0f, count: 2};
-const NEED3: Meaning = Meaning {mask: 0x07, count: 3};
-
-/// The [`Meaning`]s of all non-continuation bytes, indexed by the top 4 bits.
-const MEANINGS: [Meaning; 0x10] = [
-    ASCII, ASCII, ASCII, ASCII, ASCII, ASCII, ASCII, ASCII,
-    DUMMY, DUMMY, DUMMY, DUMMY, NEED1, NEED1, NEED2, NEED3,
-];
-
 const MISSING: E = "Invalid UTF-8: missing continuation byte";
 const SPURIOUS: E = "Invalid UTF-8: spurious continuation byte";
+const RESERVED: E = "Invalid UTF-8: undefined start byte";
 const INVALID: E = "Invalid unicode scalar value";
 
 /// A [`Parser`] that accepts `u8`s and generates `char`s.
@@ -33,11 +12,11 @@ pub struct Decoder<I: Push<char>> {
     inner: I,
 
     /// A partial scalar value read from previous bytes.
-    /// Unused if [`count`] is zero.
+    /// Must be zero if [`count`] is zero.
     bits: u32,
 
     /// The number of continuation bytes needed to complete the character.
-    count: u8,
+    count: u32,
 }
 
 impl<I: Push<char>> Decoder<I> {
@@ -54,7 +33,7 @@ impl<I: Push<char>> Wrapper for Decoder<I> {
         if self.count > 0 { self.error(MISSING); }
     }
 
-    fn partial_reset(&mut self) { self.count = 0; }
+    fn partial_reset(&mut self) { self.bits = 0; self.count = 0; }
 
     /// Any byte string is valid input.
     const MISSING: E = "Should not happen";
@@ -62,24 +41,16 @@ impl<I: Push<char>> Wrapper for Decoder<I> {
 
 impl<I: Push<char>> MaybePush<u8> for Decoder<I> {
     fn maybe_push(&mut self, token: u8) -> Option<u8> {
-        if token & 0xc0 == 0x80 {
-            // It's a continuation byte.
-            if self.count == 0 {
-                self.error(SPURIOUS);
-                return None;
-            }
-            let low_bits = token & 0x3f;
-            self.bits = (self.bits << 6) | (low_bits as u32);
-            self.count -= 1;
-        } else {
-            // It's not a continuation byte.
-            if self.count > 0 {
-                self.error(MISSING);
-                return Some(token); // Try again.
-            }
-            let meaning = MEANINGS[token as usize >> 4];
-            self.bits = (token & meaning.mask) as u32;
-            self.count = meaning.count;
+        let ones = (token & 0xf8).leading_ones();
+        self.bits <<= 6;
+        self.bits |= token as u32 & (0x7f >> ones);
+        match (ones, self.count) {
+            (0, 0) => { self.count = 0; }, // ASCII.
+            (1, 0) => { self.error(SPURIOUS); return None; },
+            (5, 0) => { self.error(RESERVED); return None; },
+            (_, 0) => { self.count = ones - 1; }, // Start of multi-byte char.
+            (1, _) => { self.count -= 1; }, // Continuation of multi-byte char.
+            (_, _) => { self.error(MISSING); return Some(token); },
         }
         if self.count == 0 {
             if let Some(c) = char::from_u32(self.bits) {
@@ -87,6 +58,7 @@ impl<I: Push<char>> MaybePush<u8> for Decoder<I> {
             } else {
                 self.error(INVALID);
             }
+            self.bits = 0;
         }
         None
     }
@@ -124,5 +96,10 @@ mod tests {
     #[test]
     fn spurious() {
         check(&[0x3c, 0xf0, 0x9f, 0x92, 0x96, 0x80, 0x3e], &[Ok('<'), Ok('💖'), Err(SPURIOUS), Ok('>')]);
+    }
+
+    #[test]
+    fn reserved() {
+        check(&[0x3c, 0xff, 0x3e], &[Ok('<'), Err(RESERVED), Ok('>')]);
     }
 }
