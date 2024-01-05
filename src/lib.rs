@@ -1,59 +1,70 @@
 use std::fmt::{Debug};
 
-/// Parse tokens.
-pub trait Token: Debug + Clone {}
+mod utf8;
+pub use utf8::{Decoder};
+
+type E = &'static str;
+
+pub trait Parser {
+    /// Insert an error token into the output, and reset this `Parser` to its
+    /// initial state.
+    fn push_error(&mut self, error: E);
+}
 
 // ----------------------------------------------------------------------------
 
-/// Parsers that can accept tokens of type `T`.
+/// [`Parser`]s that can accept tokens of type `T`.
 ///
-/// One parser may implement `Push<T>` for several types `T`.
-pub trait Push<T: Token> {
-    /// Feed `token` to this parser, and perform any resulting actions.
+/// One `Parser` may implement `Push<T>` for several types `T`.
+pub trait Push<T>: Parser {
+    /// Feed `token` to this `Parser`, and perform any resulting actions.
     fn push(&mut self, token: T);
 }
 
 // ----------------------------------------------------------------------------
 
-/// Parsers that produce an output at the end of the input.
+/// [`Parser`]s that produce an output at the end of the input.
 pub trait Finish {
     type Output;
 
-    /// Feed "end of file" to this parser, and retrieve the output.
+    /// Feed "end of file" to this `Parser`, and retrieve the output.
     fn finish(self) -> Self::Output;
 }
 
 // ----------------------------------------------------------------------------
 
-/// Parsers that feed their output to another parser.
-pub trait Wrap {
-    type Inner;
-
-    /// Returns the wrapped parser.
-    fn inner(&mut self) -> &mut Self::Inner;
-}
-
-// ----------------------------------------------------------------------------
-
-/// A trivial parser that merely collects tokens.
+/// A trivial [`Parser`] that merely collects tokens.
 #[derive(Default, Debug, Clone)]
 pub struct Buffer<T> {
-    tokens: Vec<T>,
+    tokens: Vec<Result<T, E>>,
 }
 
-impl<T: Token> Push<T> for Buffer<T> {
-    fn push(&mut self, token: T) { self.tokens.push(token); }
+impl<T> Parser for Buffer<T> {
+    fn push_error(&mut self, error: E) { self.tokens.push(Err(error)); }
 }
 
-impl<T: Token> Finish for Buffer<T> {
-    type Output = Box<[T]>;
+impl<T> Push<T> for Buffer<T> {
+    fn push(&mut self, token: T) { self.tokens.push(Ok(token)); }
+}
+
+impl<T> Finish for Buffer<T> {
+    type Output = Box<[Result<T, E>]>;
 
     fn finish(self) -> Self::Output { self.tokens.into() }
 }
 
 // ----------------------------------------------------------------------------
 
+/// [`Parser`]s that feed their output to another `Parser`.
+pub trait Wrap {
+    type Inner: Parser;
+
+    /// Returns the wrapped `Parser`.
+    fn inner(&mut self) -> &mut Self::Inner;
+}
+
+// ----------------------------------------------------------------------------
+
 #[cfg(test)]
 mod tests {
-    use super::*;
 }
