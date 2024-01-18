@@ -6,6 +6,9 @@ pub use utf8::{Decoder};
 mod escape;
 pub use escape::{Escaper, EscapeSequence};
 
+mod span;
+pub use span::{Spanner, Whitespace, Comment, CharLiteral, StringLiteral};
+
 /// The type of parse errors.
 type E = &'static str;
 
