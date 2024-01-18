@@ -1,9 +1,9 @@
 use super::{Parser, E, Push, MaybePush, Wrapper};
 
-const MISSING: E = "Invalid UTF-8: missing continuation byte";
-const SPURIOUS: E = "Invalid UTF-8: spurious continuation byte";
-const RESERVED: E = "Invalid UTF-8: undefined start byte";
-const INVALID: E = "Invalid unicode scalar value";
+pub const MISSING: E = "Invalid UTF-8: missing continuation byte";
+pub const SPURIOUS: E = "Invalid UTF-8: spurious continuation byte";
+pub const RESERVED: E = "Invalid UTF-8: undefined start byte";
+pub const INVALID: E = "Invalid unicode scalar value";
 
 /// A [`Parser`] that accepts `u8`s and generates `char`s.
 #[derive(Default, Debug, Clone)]
@@ -36,7 +36,7 @@ impl<I: Push<char>> Wrapper for Decoder<I> {
     fn partial_reset(&mut self) { self.bits = 0; self.count = 0; }
 
     /// Any byte string is valid input.
-    const MISSING: E = "Should not happen";
+    const MISSING: E = "utf8: Should not happen";
 }
 
 impl<I: Push<char>> MaybePush<u8> for Decoder<I> {

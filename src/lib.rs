@@ -3,6 +3,9 @@ use std::fmt::{Debug};
 mod utf8;
 pub use utf8::{Decoder};
 
+mod escape;
+pub use escape::{Escaper, EscapeSequence};
+
 /// The type of parse errors.
 type E = &'static str;
 
