@@ -18,6 +18,7 @@ pub struct StringLiteral(String);
 
 pub const UNTERMINATED_BLOCK_COMMENT: E = "Unterminated block comment";
 pub const UNTERMINATED_STRING: E = "Unterminated string";
+pub const MISSING_CHAR: E = "Missing character literal";
 pub const UNTERMINATED_CHAR: E = "Unterminated character literal";
 
 // ----------------------------------------------------------------------------
@@ -90,6 +91,9 @@ impl<I: Output> Wrapper for Spanner<I> {
             },
             StringSpan(_) => {
                 self.error(UNTERMINATED_STRING);
+            },
+            CharSpan(None) => {
+                self.error(MISSING_CHAR);
             },
             CharSpan(_) => {
                 self.error(UNTERMINATED_CHAR);
@@ -180,7 +184,10 @@ impl<I: Output> MaybePush<char> for Spanner<I> {
                 return None;
             },
             CharSpan(None) => {
-                if token == '\'' { return Some(token); }
+                if token == '\'' {
+                    self.error(MISSING_CHAR);
+                    return None;
+                }
                 self.state = CharSpan(Some(token));
                 return None;
             },
@@ -220,5 +227,106 @@ impl<I: Output> MaybePush<EscapeSequence> for Spanner<I> {
             },
             _ => { return Some(token); },
         }
+    }
+}
+
+// ----------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Flush, escape, Escaper};
+
+    #[derive(Debug, Clone, PartialEq)]
+    enum Token {Error(E), WS, CO, CL(CharLiteral), SL(StringLiteral), Char(char)}
+    use Token::*;
+
+    /// A [`Parser`] that converts everything to a [`Token`].
+    #[derive(Debug, Default, Clone, PartialEq)]
+    struct Buffer(Vec<Token>);
+
+    impl Parser for Buffer {
+        fn error(&mut self, error: E) { self.0.push(Error(error)); }
+    }
+
+    impl Push<Whitespace> for Buffer {
+        fn push(&mut self, _token: Whitespace) { self.0.push(WS); }
+    }
+
+    impl Push<Comment> for Buffer {
+        fn push(&mut self, _token: Comment) { self.0.push(CO); }
+    }
+
+    impl Push<CharLiteral> for Buffer {
+        fn push(&mut self, token: CharLiteral) { self.0.push(CL(token)); }
+    }
+
+    impl Push<StringLiteral> for Buffer {
+        fn push(&mut self, token: StringLiteral) { self.0.push(SL(token)); }
+    }
+
+    impl Push<char> for Buffer {
+        fn push(&mut self, token: char) { self.0.push(Char(token)); }
+    }
+
+    impl Flush for Buffer {
+        type Output = Box<[Token]>;
+        fn flush(&mut self) -> Self::Output { self.0.drain(..).collect() }
+    }
+
+    fn check(input: &str, expected: &[Token]) {
+        println!("input = {:}", input);
+        let mut parser = Escaper::new(Spanner::new(Buffer::default()));
+        for c in input.chars() { parser.push(c); println!("parser = {:x?}", parser); }
+        let observed = parser.flush();
+        assert_eq!(expected, &*observed);
+    }
+
+    #[test]
+    fn ascii() {
+        check("Hello", &[Char('H'), Char('e'), Char('l'), Char('l'), Char('o')]);
+    }
+
+    #[test]
+    fn whitespace() {
+        check("< \n\r\t>", &[Char('<'), WS, Char('>')]);
+    }
+
+    #[test]
+    fn comment() {
+        check("<// Comment!\n>", &[Char('<'), CO, WS, Char('>')]);
+        check("<//* Comment!\n>", &[Char('<'), CO, WS, Char('>')]);
+        check("<// \"Comment!\" >", &[Char('<'), CO]);
+        check("</* Comment! \n*/>", &[Char('<'), CO, Char('>')]);
+        check("</*// Comment!\n*/>", &[Char('<'), CO, Char('>')]);
+        check("</* \"Comment!\" */>", &[Char('<'), CO, Char('>')]);
+    }
+
+    #[test]
+    fn char_literal() {
+        check("<'", &[Char('<'), Error(MISSING_CHAR)]);
+        check("<''>", &[Char('<'), Error(MISSING_CHAR), Char('>')]);
+        check("<'A>", &[Char('<'), Error(UNTERMINATED_CHAR), Char('>')]);
+        check("<'A'>", &[Char('<'), CL(CharLiteral('A')), Char('>')]);
+        check("<'\\x4'>", &[Char('<'), Error(escape::MISSING_HEX), Error(UNTERMINATED_CHAR)]);
+        check("<'\\x41'>", &[Char('<'), CL(CharLiteral('A')), Char('>')]);
+        check("<'AA>", &[Char('<'), Error(UNTERMINATED_CHAR), Char('A'), Char('>')]);
+        check("<'AA'>", &[Char('<'), Error(UNTERMINATED_CHAR), Char('A'), Error(UNTERMINATED_CHAR)]);
+    }
+
+    #[test]
+    fn string_literal() {
+        check("<\"", &[Char('<'), Error(UNTERMINATED_STRING)]);
+        check("<\"\">", &[Char('<'), SL(StringLiteral("".into())), Char('>')]);
+        check("<\"A>", &[Char('<'), Error(UNTERMINATED_STRING)]);
+        check("<\"A\">", &[Char('<'), SL(StringLiteral("A".into())), Char('>')]);
+        check("<\"\\x4\">", &[Char('<'), Error(escape::MISSING_HEX), Error(UNTERMINATED_STRING)]);
+        check("<\"\\x41\">", &[Char('<'), SL(StringLiteral("A".into())), Char('>')]);
+        check("<\"AA>", &[Char('<'), Error(UNTERMINATED_STRING)]);
+        check("<\"AA\">", &[Char('<'), SL(StringLiteral("AA".into())), Char('>')]);
+        check("<\"A\x41\">", &[Char('<'), SL(StringLiteral("AA".into())), Char('>')]);
+        check("<\"\x41A\">", &[Char('<'), SL(StringLiteral("AA".into())), Char('>')]);
+        check("<\"//\">", &[Char('<'), SL(StringLiteral("//".into())), Char('>')]);
+        check("<\"/*\">", &[Char('<'), SL(StringLiteral("/*".into())), Char('>')]);
     }
 }
