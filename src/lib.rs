@@ -4,10 +4,10 @@ mod utf8;
 pub use utf8::{Decoder};
 
 mod escape;
-pub use escape::{Escaper, EscapeSequence};
+pub use escape::{EscapeParser, EscapeSequence};
 
 mod span;
-pub use span::{Spanner, Whitespace, Comment, CharLiteral, StringLiteral};
+pub use span::{SpanParser, Whitespace, Comment, CharLiteral, StringLiteral};
 
 /// The type of parse errors.
 type E = &'static str;

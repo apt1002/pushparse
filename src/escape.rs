@@ -56,7 +56,7 @@ use State::*;
 /// A [`Parser`] that accepts `char`s and generates [`EscapeSequence`]s,
 /// passing on any other `char`s.
 #[derive(Debug, Clone)]
-pub struct Escaper<I: Push<char> + Push<EscapeSequence>> {
+pub struct EscapeParser<I: Push<char> + Push<EscapeSequence>> {
     /// The output stream.
     inner: I,
 
@@ -64,9 +64,9 @@ pub struct Escaper<I: Push<char> + Push<EscapeSequence>> {
     state: State,
 }
 
-impl<I: Push<char> + Push<EscapeSequence>> Escaper<I> {
-    /// Construct an `Escaper` that feeds its output to `inner`.
-    pub fn new(inner: I) -> Self { Escaper {inner, state: Home} }
+impl<I: Push<char> + Push<EscapeSequence>> EscapeParser<I> {
+    /// Construct an `EscapeParser` that feeds its output to `inner`.
+    pub fn new(inner: I) -> Self { EscapeParser {inner, state: Home} }
 
     /// Output an [`EscapeSequence`] and return to the initial [`State`].
     fn output(&mut self, c: char) {
@@ -85,7 +85,7 @@ impl<I: Push<char> + Push<EscapeSequence>> Escaper<I> {
     }
 }
 
-impl<I: Push<char> + Push<EscapeSequence>> Wrapper for Escaper<I> {
+impl<I: Push<char> + Push<EscapeSequence>> Wrapper for EscapeParser<I> {
     type Inner = I;
 
     fn inner(&mut self) -> &mut Self::Inner { &mut self.inner }
@@ -110,7 +110,7 @@ impl<I: Push<char> + Push<EscapeSequence>> Wrapper for Escaper<I> {
     const MISSING: E = "escape: Should not happen";
 }
 
-impl<I: Push<char> + Push<EscapeSequence>> MaybePush<char> for Escaper<I> {
+impl<I: Push<char> + Push<EscapeSequence>> MaybePush<char> for EscapeParser<I> {
     fn maybe_push(&mut self, token: char) -> Option<char> {
         match self.state {
             Home => {
@@ -213,7 +213,7 @@ mod tests {
 
     fn check(input: &str, expected: &[Token]) {
         println!("input = {:}", input);
-        let mut parser = Escaper::new(Buffer::default());
+        let mut parser = EscapeParser::new(Buffer::default());
         for c in input.chars() { parser.push(c); println!("parser = {:x?}", parser); }
         let observed = parser.flush();
         assert_eq!(expected, &*observed);
