@@ -12,6 +12,9 @@ pub use span::{SpanParser, PushSpan, Comment, CharLiteral, StringLiteral};
 mod word;
 pub use word::{WordParser, PushWord, Whitespace, Alphanumeric, Operator};
 
+mod bracket;
+pub use bracket::{BracketParser, PushBracket, Bracket};
+
 /// The type of parse errors.
 type E = &'static str;
 
