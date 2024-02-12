@@ -29,16 +29,13 @@ enum State {
     Operator,
 }
 
-pub trait Output: Push<Whitespace> + Push<Alphanumeric> + Push<Operator> +
-    Push<Comment> + Push<CharLiteral> + Push<StringLiteral> + Push<char> {}
+pub trait PushWord: Push<Whitespace> + Push<Alphanumeric> + Push<Operator> {}
 
-impl<I: Push<Whitespace> + Push<Alphanumeric> + Push<Operator> +
-    Push<Comment> + Push<CharLiteral> + Push<StringLiteral> + Push<char>
-> Output for I {}
+impl<I: Push<Whitespace> + Push<Alphanumeric> + Push<Operator>> PushWord for I {}
 
 /// A [`Parser`] that recognizes comments, and character and string literals.
 #[derive(Debug, Clone)]
-pub struct WordParser<I: Output> {
+pub struct WordParser<I: PushWord + Push<char>> {
     /// The output stream.
     inner: I,
 
@@ -49,14 +46,14 @@ pub struct WordParser<I: Output> {
     buffer: String,
 }
 
-impl<I: Output> WordParser<I> {
+impl<I: PushWord + Push<char>> WordParser<I> {
     /// Construct a `WordParser` that feeds its output to `inner`.
     pub fn new(inner: I) -> Self {
         WordParser {inner, state: State::Home, buffer: String::new()}
     }
 }
 
-impl<I: Output> Wrapper for WordParser<I> {
+impl<I: PushWord + Push<char>> Wrapper for WordParser<I> {
     type Inner = I;
 
     fn inner(&mut self) -> &mut Self::Inner { &mut self.inner }
@@ -84,11 +81,11 @@ impl<I: Output> Wrapper for WordParser<I> {
     const MISSING: E = "word: Should not happen";
 }
 
-impl<I: Output> NeverPush<Comment> for WordParser<I> {}
-impl<I: Output> NeverPush<CharLiteral> for WordParser<I> {}
-impl<I: Output> NeverPush<StringLiteral> for WordParser<I> {}
+impl<I: PushWord + Push<Comment> + Push<char>> NeverPush<Comment> for WordParser<I> {}
+impl<I: PushWord + Push<CharLiteral> + Push<char>> NeverPush<CharLiteral> for WordParser<I> {}
+impl<I: PushWord + Push<StringLiteral> + Push<char>> NeverPush<StringLiteral> for WordParser<I> {}
 
-impl<I: Output> MaybePush<char> for WordParser<I> {
+impl<I: PushWord + Push<char>> MaybePush<char> for WordParser<I> {
     fn maybe_push(&mut self, token: char) -> Option<char> {
         assert_eq!(self.state == State::Home, self.buffer.len() == 0);
         let new_state = match token {
@@ -122,7 +119,7 @@ impl<I: Output> MaybePush<char> for WordParser<I> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Parser, Flush, EscapeParser, span, SpanParser};
+    use crate::{Parser, Flush, EscapeParser, SpanParser};
 
     #[derive(Debug, Clone, PartialEq)]
     enum Token {Error(E), Ws(String), An(String), Op(String), Co, CL(char), SL(String), Char(char)}

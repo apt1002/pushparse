@@ -43,13 +43,13 @@ enum State {
 
 use State::*;
 
-pub trait Output: Push<Comment> + Push<CharLiteral> + Push<StringLiteral> + Push<char> {}
+pub trait PushSpan: Push<Comment> + Push<CharLiteral> + Push<StringLiteral> {}
 
-impl<I: Push<Comment> + Push<CharLiteral> + Push<StringLiteral> + Push<char>> Output for I {}
+impl<I: Push<Comment> + Push<CharLiteral> + Push<StringLiteral>> PushSpan for I {}
 
 /// A [`Parser`] that recognizes comments, and character and string literals.
 #[derive(Debug, Clone)]
-pub struct SpanParser<I: Output> {
+pub struct SpanParser<I: PushSpan + Push<char>> {
     /// The output stream.
     inner: I,
 
@@ -57,12 +57,12 @@ pub struct SpanParser<I: Output> {
     state: State,
 }
 
-impl<I: Output> SpanParser<I> {
+impl<I: PushSpan + Push<char>> SpanParser<I> {
     /// Construct a `SpanParser` that feeds its output to `inner`.
     pub fn new(inner: I) -> Self { SpanParser {inner, state: Home} }
 }
 
-impl<I: Output> Wrapper for SpanParser<I> {
+impl<I: PushSpan + Push<char>> Wrapper for SpanParser<I> {
     type Inner = I;
 
     fn inner(&mut self) -> &mut Self::Inner { &mut self.inner }
@@ -108,7 +108,7 @@ impl<I: Output> Wrapper for SpanParser<I> {
     const MISSING: E = "span: Should not happen";
 }
 
-impl<I: Output> MaybePush<char> for SpanParser<I> {
+impl<I: PushSpan + Push<char>> MaybePush<char> for SpanParser<I> {
     fn maybe_push(&mut self, token: char) -> Option<char> {
         match &mut self.state {
             Home => {
@@ -180,7 +180,7 @@ impl<I: Output> MaybePush<char> for SpanParser<I> {
     }
 }
 
-impl<I: Output> MaybePush<EscapeSequence> for SpanParser<I> {
+impl<I: PushSpan + Push<char>> MaybePush<EscapeSequence> for SpanParser<I> {
     fn maybe_push(&mut self, token: EscapeSequence) -> Option<EscapeSequence> {
         match &mut self.state {
             LineComment => {

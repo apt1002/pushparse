@@ -7,10 +7,10 @@ mod escape;
 pub use escape::{EscapeParser, EscapeSequence};
 
 mod span;
-pub use span::{SpanParser, Comment, CharLiteral, StringLiteral};
+pub use span::{SpanParser, PushSpan, Comment, CharLiteral, StringLiteral};
 
 mod word;
-pub use word::{WordParser, Whitespace, Alphanumeric, Operator};
+pub use word::{WordParser, PushWord, Whitespace, Alphanumeric, Operator};
 
 /// The type of parse errors.
 type E = &'static str;
