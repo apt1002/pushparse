@@ -1,9 +1,5 @@
 use super::{Parser, E, Push, MaybePush, Wrapper, EscapeSequence};
 
-/// Represents some whitespace.
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub struct Whitespace;
-
 /// Represents a comment.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Comment;
@@ -28,9 +24,6 @@ enum State {
     /// The initial state.
     Home,
 
-    /// After reading whitespace characters.
-    WhitespaceSpan,
-
     /// After reading a slash.
     Slash,
 
@@ -50,9 +43,9 @@ enum State {
 
 use State::*;
 
-pub trait Output: Push<Whitespace> + Push<Comment> + Push<CharLiteral> + Push<StringLiteral> + Push<char> {}
+pub trait Output: Push<Comment> + Push<CharLiteral> + Push<StringLiteral> + Push<char> {}
 
-impl<I: Push<Whitespace> + Push<Comment> + Push<CharLiteral> + Push<StringLiteral> + Push<char>> Output for I {}
+impl<I: Push<Comment> + Push<CharLiteral> + Push<StringLiteral> + Push<char>> Output for I {}
 
 /// A [`Parser`] that recognizes comments, and character and string literals.
 #[derive(Debug, Clone)]
@@ -77,9 +70,6 @@ impl<I: Output> Wrapper for SpanParser<I> {
     fn partial_flush(&mut self) {
         match self.state {
             Home => {},
-            WhitespaceSpan => {
-                self.inner.push(Whitespace);
-            },
             Slash => {
                 self.inner.push('/');
             },
@@ -104,11 +94,11 @@ impl<I: Output> Wrapper for SpanParser<I> {
 
     fn partial_reset(&mut self) {
         match self.state {
-            WhitespaceSpan => {
-                self.inner.push(Whitespace);
-            },
             Slash => {
                 self.inner.push('/');
+            },
+            LineComment => {
+                self.inner.push(Comment);
             },
             _ => {},
         }
@@ -123,24 +113,12 @@ impl<I: Output> MaybePush<char> for SpanParser<I> {
         match &mut self.state {
             Home => {
                 match token {
-                    ' ' | '\t' | '\n' | '\r' => { self.state = WhitespaceSpan; },
                     '/' => { self.state = Slash; },
                     '\'' => { self.state = CharSpan(None); },
                     '"' => { self.state = StringSpan(String::new()); },
                     _ => { self.inner.push(token); },
                 }
                 return None;
-            },
-            WhitespaceSpan => {
-                match token {
-                    ' ' | '\t' | '\n' | '\r' => {
-                        self.state = WhitespaceSpan;
-                        return None;
-                    },
-                    _ => {
-                        return Some(token);
-                    },
-                }
             },
             Slash => {
                 match token {
@@ -159,7 +137,6 @@ impl<I: Output> MaybePush<char> for SpanParser<I> {
             },
             LineComment => {
                 if token == '\n' { return Some(token); }
-                self.state = LineComment;
                 return None;
             },
             BlockComment(star) => {
@@ -168,7 +145,7 @@ impl<I: Output> MaybePush<char> for SpanParser<I> {
                     self.state = Home;
                     return None;
                 }
-                self.state = BlockComment(token == '*');
+                *star = token == '*';
                 return None;
             },
             StringSpan(s) => {
@@ -238,7 +215,7 @@ mod tests {
     use crate::{Flush, escape, EscapeParser};
 
     #[derive(Debug, Clone, PartialEq)]
-    enum Token {Error(E), WS, CO, CL(CharLiteral), SL(StringLiteral), Char(char)}
+    enum Token {Error(E), Co, CL(CharLiteral), SL(StringLiteral), Char(char)}
     use Token::*;
 
     /// A [`Parser`] that converts everything to a [`Token`].
@@ -249,12 +226,8 @@ mod tests {
         fn error(&mut self, error: E) { self.0.push(Error(error)); }
     }
 
-    impl Push<Whitespace> for Buffer {
-        fn push(&mut self, _token: Whitespace) { self.0.push(WS); }
-    }
-
     impl Push<Comment> for Buffer {
-        fn push(&mut self, _token: Comment) { self.0.push(CO); }
+        fn push(&mut self, _token: Comment) { self.0.push(Co); }
     }
 
     impl Push<CharLiteral> for Buffer {
@@ -288,18 +261,13 @@ mod tests {
     }
 
     #[test]
-    fn whitespace() {
-        check("< \n\r\t>", &[Char('<'), WS, Char('>')]);
-    }
-
-    #[test]
     fn comment() {
-        check("<// Comment!\n>", &[Char('<'), CO, WS, Char('>')]);
-        check("<//* Comment!\n>", &[Char('<'), CO, WS, Char('>')]);
-        check("<// \"Comment!\" >", &[Char('<'), CO]);
-        check("</* Comment! \n*/>", &[Char('<'), CO, Char('>')]);
-        check("</*// Comment!\n*/>", &[Char('<'), CO, Char('>')]);
-        check("</* \"Comment!\" */>", &[Char('<'), CO, Char('>')]);
+        check("<// Comment!\n>", &[Char('<'), Co, Char('\n'), Char('>')]);
+        check("<//* Comment!\n>", &[Char('<'), Co, Char('\n'), Char('>')]);
+        check("<// \"Comment!\" >", &[Char('<'), Co]);
+        check("</* Comment! \n*/>", &[Char('<'), Co, Char('>')]);
+        check("</*// Comment!\n*/>", &[Char('<'), Co, Char('>')]);
+        check("</* \"Comment!\" */>", &[Char('<'), Co, Char('>')]);
     }
 
     #[test]
