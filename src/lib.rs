@@ -13,7 +13,7 @@ mod word;
 pub use word::{WordParser, PushWord, Whitespace, Alphanumeric, Operator};
 
 mod bracket;
-pub use bracket::{BracketParser, PushBracket, Bracket};
+pub use bracket::{BracketParser, Nested, Bracket};
 
 /// The type of parse errors.
 type E = &'static str;

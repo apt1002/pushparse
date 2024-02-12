@@ -1,4 +1,4 @@
-use super::{E, Push, Wrapper, MaybePush, NeverPush, Comment, CharLiteral, StringLiteral};
+use super::{escape, span, E, Push, Wrapper, MaybePush, NeverPush};
 
 /// Represents some whitespace.
 #[derive(Debug, Clone, PartialEq)]
@@ -11,6 +11,16 @@ pub struct Alphanumeric(pub String);
 /// Represents an operator word.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Operator(pub String);
+
+// ----------------------------------------------------------------------------
+
+/// A token type ignored by [`BracketParser`].
+pub trait Spectator {}
+
+impl Spectator for escape::EscapeSequence {}
+impl Spectator for span::Comment {}
+impl Spectator for span::CharLiteral {}
+impl Spectator for span::StringLiteral {}
 
 // ----------------------------------------------------------------------------
 
@@ -82,9 +92,7 @@ impl<I: PushWord + Push<char>> Wrapper for WordParser<I> {
     const MISSING: E = "word: Should not happen";
 }
 
-impl<I: PushWord + Push<Comment> + Push<char>> NeverPush<Comment> for WordParser<I> {}
-impl<I: PushWord + Push<CharLiteral> + Push<char>> NeverPush<CharLiteral> for WordParser<I> {}
-impl<I: PushWord + Push<StringLiteral> + Push<char>> NeverPush<StringLiteral> for WordParser<I> {}
+impl<T: Spectator, I: Push<T> + PushWord + Push<char>> NeverPush<T> for WordParser<I> {}
 
 impl<I: PushWord + Push<char>> MaybePush<char> for WordParser<I> {
     fn maybe_push(&mut self, token: char) -> Option<char> {
@@ -146,16 +154,16 @@ mod tests {
         fn push(&mut self, token: Operator) { self.0.push(Op(token.0)); }
     }
 
-    impl Push<Comment> for Buffer {
-        fn push(&mut self, _token: Comment) { self.0.push(Co); }
+    impl Push<span::Comment> for Buffer {
+        fn push(&mut self, _token: span::Comment) { self.0.push(Co); }
     }
 
-    impl Push<CharLiteral> for Buffer {
-        fn push(&mut self, token: CharLiteral) { self.0.push(CL(token.0)); }
+    impl Push<span::CharLiteral> for Buffer {
+        fn push(&mut self, token: span::CharLiteral) { self.0.push(CL(token.0)); }
     }
 
-    impl Push<StringLiteral> for Buffer {
-        fn push(&mut self, token: StringLiteral) { self.0.push(SL(token.0)); }
+    impl Push<span::StringLiteral> for Buffer {
+        fn push(&mut self, token: span::StringLiteral) { self.0.push(SL(token.0)); }
     }
 
     impl Push<char> for Buffer {
