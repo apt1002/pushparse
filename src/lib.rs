@@ -9,6 +9,9 @@ pub use escape::{EscapeParser, EscapeSequence};
 mod span;
 pub use span::{SpanParser, Comment, CharLiteral, StringLiteral};
 
+mod word;
+pub use word::{WordParser, Whitespace, Alphanumeric, Operator};
+
 /// The type of parse errors.
 type E = &'static str;
 
@@ -145,6 +148,21 @@ impl<T, P: Wrapper + MaybePush<T>> Push<T> for P {
                 self.error(Self::MISSING);
             }
         }
+    }
+}
+
+// ----------------------------------------------------------------------------
+
+/// A trivial way to implement [`Push<T>`] for a [`Wrapper`].
+pub trait NeverPush<T>: Wrapper {}
+
+// Ideally we'd implement `Push<T>` directly but Rust won't let us.
+// Instead we implement `MaybePush<T>` to achieve the desired effect.
+impl<T, P: Wrapper + NeverPush<T>> MaybePush<T> for P where P::Inner: Push<T> {
+    fn maybe_push(&mut self, token: T) -> Option<T> {
+        self.partial_flush();
+        self.inner().push(token);
+        return None;
     }
 }
 

@@ -1,4 +1,4 @@
-use super::{Parser, E, Push, MaybePush, Wrapper, EscapeSequence};
+use super::{Parser, E, Push, Wrapper, MaybePush, EscapeSequence};
 
 /// Represents a comment.
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -6,11 +6,11 @@ pub struct Comment;
 
 /// Represents a character literal.
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub struct CharLiteral(char);
+pub struct CharLiteral(pub char);
 
 /// Represents a string.
 #[derive(Debug, Clone, PartialEq)]
-pub struct StringLiteral(String);
+pub struct StringLiteral(pub String);
 
 pub const UNTERMINATED_BLOCK_COMMENT: E = "Unterminated block comment";
 pub const UNTERMINATED_STRING: E = "Unterminated string";
