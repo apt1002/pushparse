@@ -15,6 +15,9 @@ pub use word::{WordParser, PushWord, Whitespace, Alphanumeric, Operator, Keyword
 mod bracket;
 pub use bracket::{BracketParser, Bracket};
 
+mod expr;
+pub use expr::{ExprParser, Expr};
+
 /// The type of parse errors.
 type E = &'static str;
 
