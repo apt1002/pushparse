@@ -10,7 +10,7 @@ mod span;
 pub use span::{SpanParser, PushSpan, Comment, CharLiteral, StringLiteral};
 
 mod word;
-pub use word::{WordParser, PushWord, Whitespace, Alphanumeric, Operator};
+pub use word::{WordParser, PushWord, Whitespace, Alphanumeric, Operator, Keyword};
 
 mod bracket;
 pub use bracket::{BracketParser, Bracket};
