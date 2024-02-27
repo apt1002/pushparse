@@ -73,28 +73,29 @@ pub struct Precedence(u8);
 
 /// Represents an [`Expr`] that is missing a right operand.
 #[derive(Debug, Clone)]
-struct Waiting {left: Option<Box<Expr>>, op: Keyword, right: Precedence}
+pub struct Waiting {left: Option<Box<Expr>>, op: Keyword, right: Precedence}
 
 impl Waiting {
     /// Supply the operand that `self` was waiting for.
-    fn apply(self, right: Box<Expr>) -> Box<Expr> {
-        Box::new(Expr::Op(self.left, self.op, Some(right)))
+    fn apply(self, right: Expr) -> Expr {
+        Expr::Op(self.left, self.op, Some(Box::new(right)))
     }
 }
 
 /// Either a complete [`Expr`] or one [`Waiting`] for its right operand.
-enum MaybeExpr {Complete(Box<Expr>), Incomplete(Waiting)}
+pub enum MaybeExpr {Complete(Expr), Incomplete(Waiting)}
 use MaybeExpr::*;
 
 /// Implemented by tokens that can form part of an [`Expr`].
 trait Part: Sized {
-    /// If `self` is an infix or postfix operator, return its binding strength.
+    /// If `self` is an infix or postfix operator, return its binding strength,
+    /// and callback to turn its left operand into a [`MaybeExpr`].
     fn with_left(self) -> Result<(
         Precedence,
         impl Fn(Box<Expr>) -> MaybeExpr,
     ), Self>;
 
-    /// If `self` is a prefix or nonfix operator, return its binding strength.
+    /// If `self` is a prefix or nonfix operator, turn it into a [`MaybeExpr`].
     fn without_left(self) -> Result<MaybeExpr, Self>;
 
     /// The return type of [`alternative()`].
@@ -136,7 +137,7 @@ impl Stack {
 
     /// If any [`Waiting`]s on [`self.stack`] have a higher [`Precedence`] than
     /// `left`, apply them to `expr`.
-    fn flush_up_to(&mut self, mut expr: Box<Expr>, left: Precedence) -> Box<Expr> {
+    fn flush_up_to(&mut self, mut expr: Expr, left: Precedence) -> Expr {
         while let Some(waiting) = self.pop_if_higher(left) {
             expr = waiting.apply(expr);
         }
@@ -144,7 +145,7 @@ impl Stack {
     }
 
     /// Apply all [`Waiting`]s to `expr`.
-    fn flush(&mut self, expr: Box<Expr>) -> Box<Expr> {
+    fn flush(&mut self, expr: Expr) -> Expr {
         self.flush_up_to(expr, Precedence(u8::MAX))
     }
 }
@@ -153,7 +154,7 @@ impl Stack {
 
 /// A [`Parser`] the recognises [`Expr`]s.
 #[derive(Debug, Clone)]
-pub struct ExprParser<I: Push<Box<Expr>>> {
+pub struct ExprParser<I: Push<Expr>> {
     /// The output stream.
     inner: I,
 
@@ -161,23 +162,23 @@ pub struct ExprParser<I: Push<Box<Expr>>> {
     stack: Stack,
 
     /// An [`Expr`] that is waiting for infix and postfix operators.
-    expr: Option<Box<Expr>>,
+    expr: Option<Expr>,
 }
 
-impl<I: Push<Box<Expr>>> ExprParser<I> {
+impl<I: Push<Expr>> ExprParser<I> {
     pub fn new(inner: I) -> Self {
         ExprParser {inner, stack: Default::default(), expr: None}
     }
 
     /// Returns `MISSING_EXPR` suitably wrapped.
-    pub fn missing() -> Box<Expr> { Box::new(Expr::Error(MISSING_EXPR)) }
+    pub fn missing() -> Expr { Expr::Error(MISSING_EXPR) }
 
     /// Try to interpret `token` as an infix or postfix operator.
-    fn with_left<T: Part>(&mut self, expr: Box<Expr>, token: T) -> Result<MaybeExpr, T> {
+    fn with_left<T: Part>(&mut self, expr: Expr, token: T) -> Result<MaybeExpr, T> {
         match token.with_left() {
             Ok((left, apply)) => {
                 let expr = self.stack.flush_up_to(expr, left);
-                Ok(apply(expr))
+                Ok(apply(Box::new(expr)))
             },
             Err(token) => {
                 let expr = self.stack.flush(expr);
@@ -210,7 +211,7 @@ impl<I: Push<Box<Expr>>> ExprParser<I> {
     }
 }
 
-impl<I: Push<Box<Expr>>> Parser for ExprParser<I> {
+impl<I: Push<Expr>> Parser for ExprParser<I> {
     fn error(&mut self, error: E) {
         if let Some(expr) = self.expr.take() {
             let expr = self.stack.flush(expr);
@@ -223,7 +224,7 @@ impl<I: Push<Box<Expr>>> Parser for ExprParser<I> {
     }
 }
 
-impl<T: Part, I: Push<Box<Expr>> + Push<T::Alternative>> Push<T> for ExprParser<I> {
+impl<T: Part, I: Push<Expr> + Push<T::Alternative>> Push<T> for ExprParser<I> {
     fn push(&mut self, token: T) {
         match self.push_helper(token) {
             Ok(Complete(expr)) => { self.expr = Some(expr); },
@@ -233,7 +234,7 @@ impl<T: Part, I: Push<Box<Expr>> + Push<T::Alternative>> Push<T> for ExprParser<
     }
 }
 
-impl<I: Push<Box<Expr>> + Push<Keyword> + Flush> Flush for ExprParser<I> {
+impl<I: Push<Expr> + Push<Keyword> + Flush> Flush for ExprParser<I> {
     type Output = I::Output;
     fn flush(&mut self) -> Self::Output {
         if !self.stack.is_empty() || self.expr.is_some() {
