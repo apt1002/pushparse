@@ -1,13 +1,24 @@
-use super::{Parser, E, Push, MaybePush, Wrapper};
+//! Turn UTF-8 byte sequences into characters.
+//!
+//! - [`Parser`] - a [`crate::Parser`] implementation that accepts:
+//!   - [`u8`]
+//! - The output token types are:
+//!   - [`char`]
+//! - In addition, any type that implements [`Spectator`] is accepted and
+//!   passed on unchanged.
+
+use crate::{E, Push as P, Parser as _};
 
 pub const MISSING: E = "Invalid UTF-8: missing continuation byte";
 pub const SPURIOUS: E = "Invalid UTF-8: spurious continuation byte";
 pub const RESERVED: E = "Invalid UTF-8: undefined start byte";
 pub const INVALID: E = "Invalid unicode scalar value";
 
+// ----------------------------------------------------------------------------
+
 /// A [`Parser`] that accepts `u8`s and generates `char`s.
 #[derive(Default, Debug, Clone)]
-pub struct Decoder<I: Push<char>> {
+pub struct Parser<I: P<char>> {
     /// The output stream.
     inner: I,
 
@@ -19,12 +30,12 @@ pub struct Decoder<I: Push<char>> {
     count: u32,
 }
 
-impl<I: Push<char>> Decoder<I> {
-    /// Construct a `Decoder` that feeds its output to `inner`.
-    pub fn new(inner: I) -> Self { Decoder {inner, bits: 0, count: 0} }
+impl<I: P<char>> Parser<I> {
+    /// Construct a `Parser` that feeds its output to `inner`.
+    pub fn new(inner: I) -> Self { Parser {inner, bits: 0, count: 0} }
 }
 
-impl<I: Push<char>> Wrapper for Decoder<I> {
+impl<I: P<char>> crate::Wrapper for Parser<I> {
     type Inner = I;
 
     fn inner(&mut self) -> &mut Self::Inner { &mut self.inner }
@@ -39,7 +50,7 @@ impl<I: Push<char>> Wrapper for Decoder<I> {
     const MISSING: E = "utf8: Should not happen";
 }
 
-impl<I: Push<char>> MaybePush<u8> for Decoder<I> {
+impl<I: P<char>> crate::MaybePush<u8> for Parser<I> {
     fn maybe_push(&mut self, token: u8) -> Option<u8> {
         let ones = (token & 0xf8).leading_ones();
         self.bits <<= 6;
@@ -54,7 +65,7 @@ impl<I: Push<char>> MaybePush<u8> for Decoder<I> {
         }
         if self.count == 0 {
             if let Some(c) = char::from_u32(self.bits) {
-                self.inner().push(c);
+                self.inner.push(c);
             } else {
                 self.error(INVALID);
             }
@@ -72,7 +83,7 @@ mod tests {
     use crate::{Buffer, Flush};
 
     fn check(input: &[u8], expected: &[Result<char, E>]) {
-        let mut parser = Decoder::new(Buffer::default());
+        let mut parser = Parser::new(Buffer::default());
         for &byte in input { parser.push(byte); println!("parser = {:x?}", parser); }
         let observed = parser.flush();
         assert_eq!(expected, &*observed);
@@ -103,3 +114,10 @@ mod tests {
         check(&[0x3c, 0xff, 0x3e], &[Ok('<'), Err(RESERVED), Ok('>')]);
     }
 }
+
+// ----------------------------------------------------------------------------
+
+/// A token type ignored by [`Parser`].
+pub trait Spectator {}
+
+impl<T: Spectator, I: P<char> + P<T>> crate::NeverPush<T> for Parser<I> {}

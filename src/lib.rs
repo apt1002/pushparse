@@ -1,25 +1,9 @@
 use std::fmt::{Debug};
 
-mod utf8;
-pub use utf8::{Decoder};
-
-mod escape;
-pub use escape::{EscapeParser, EscapeSequence};
-
-mod span;
-pub use span::{SpanParser, PushSpan, Comment, CharLiteral, StringLiteral};
-
-mod word;
-pub use word::{WordParser, PushWord, Whitespace, Alphanumeric, Operator, Keyword};
-
-mod bracket;
-pub use bracket::{BracketParser, Bracket};
-
-mod expr;
-pub use expr::{ExprParser, Expr};
+pub mod example;
 
 /// The type of parse errors.
-type E = &'static str;
+pub type E = &'static str;
 
 /// The push parser protocol.
 ///
@@ -35,26 +19,26 @@ pub trait Parser {
 
 // ----------------------------------------------------------------------------
 
-/// [`Parser`]s that can accept tokens of type `T`.
-///
-/// One `Parser` may implement `Push<T>` for several types `T`.
-pub trait Push<T>: Parser {
-    /// Feed `token` to this `Parser`, and perform any resulting actions.
-    fn push(&mut self, token: T);
-}
-
-// ----------------------------------------------------------------------------
-
 /// [`Parser`]s that produce an output at the end of the input.
 pub trait Flush: Parser {
     /// A completely parsed file (which may contain errors).
     type Output;
 
     /// Feed "end of file" to this `Parser`, forcing it to process any buffered
-    /// input, and retrieve the [`Output`].
+    /// input, and retrieve the [`Self::Output`].
     ///
     /// The `Parser` is reset to its initial state, and can be used again.
     fn flush(&mut self) -> Self::Output;
+}
+
+// ----------------------------------------------------------------------------
+
+/// [`Parser`]s that can accept tokens of type `T`.
+///
+/// One `Parser` may implement `Push<T>` for several types `T`.
+pub trait Push<T>: Parser {
+    /// Feed `token` to this `Parser`, and perform any resulting actions.
+    fn push(&mut self, token: T);
 }
 
 // ----------------------------------------------------------------------------
@@ -88,7 +72,7 @@ impl<T> Flush for Buffer<T> {
 /// - [`Flush`], if [`Self::Inner`] implements `Flush`.
 /// - [`Push`] if `Self` implements [`MaybePush`].
 pub trait Wrapper: Parser {
-    /// The `Parser` that received the output of this `Wrapper`.
+    /// The `Parser` that receives the output of this `Wrapper`.
     type Inner: Parser;
 
     /// Returns the wrapped `Parser`.
@@ -105,7 +89,7 @@ pub trait Wrapper: Parser {
     /// An error message to use when this `Parser` is in its initial state and
     /// receives an input token that it cannot accept.
     ///
-    /// Typically the message will be "Syntax error: missing <expected input>".
+    /// Typically the message will be "Syntax error: missing {noun}".
     const MISSING: E;
 }
 

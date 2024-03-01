@@ -1,7 +1,23 @@
-use super::{span, word, E, Parser, Push, Flush};
+//! A precedence parser for mathematical expressions.
+//!
+//! Types that want to be included in expressions must implement trait [`Part`]
+//! in order to define their binding precedence.
+//!
+//! - [`Parser`] - a [`crate::Parser`] implementation that accepts:
+//!   - Any type `T` implementing [`Part`]
+//! - The output token types are:
+//!   - [`Expr`]
+//!   - [`Part::Alternative`]
+//! - In addition, any type that implements [`Spectator`] is accepted and
+//!   passed on unchanged.
+
+use crate::{E, Push as P};
+use super::{span, word};
 use word::{Keyword, Alphanumeric};
 
 pub const MISSING_EXPR: E = "Missing expression";
+
+// ----------------------------------------------------------------------------
 
 /// Represents an expression.
 #[derive(Debug, Clone, PartialEq)]
@@ -33,25 +49,7 @@ pub enum Expr {
 
 // ----------------------------------------------------------------------------
 
-/// A type that is never constructed but that Rust wants to know anyway.
-type DUMMY = &'static dyn Fn(Box<Expr>) -> MaybeExpr;
-
-/// A token type ignored by [`ExprParser`].
-pub trait Spectator: Sized {}
-
-impl Spectator for span::Comment {}
-impl Spectator for char {}
-
-impl<T: Spectator> Part for T {
-    fn with_left(self) -> Result<(Precedence, DUMMY), Self> { Err(self) }
-    fn without_left(self) -> Result<MaybeExpr, Self> { Err(self) }
-    type Alternative = Self;
-    fn alternative(self) -> Self::Alternative { self }
-}
-
-// ----------------------------------------------------------------------------
-
-/* TODO: impl `Part` for `Keyword` using this:
+/* TODO: impl `Part` for common operators:
     ('right', ['?', ':']),
     ('left', ['||']),
     ('left', ['&&']),
@@ -87,7 +85,7 @@ pub enum MaybeExpr {Complete(Expr), Incomplete(Waiting)}
 use MaybeExpr::*;
 
 /// Implemented by tokens that can form part of an [`Expr`].
-trait Part: Sized {
+pub trait Part: Sized {
     /// If `self` is an infix or postfix operator, return its binding strength,
     /// and callback to turn its left operand into a [`MaybeExpr`].
     fn with_left(self) -> Result<(
@@ -98,15 +96,15 @@ trait Part: Sized {
     /// If `self` is a prefix or nonfix operator, turn it into a [`MaybeExpr`].
     fn without_left(self) -> Result<MaybeExpr, Self>;
 
-    /// The return type of [`alternative()`].
+    /// The return type of [`Self::alternative()`].
     type Alternative;
 
-    /// If [`with_left()`] and [`without_left()`] both return [`Err`], 
-    /// convert `self` into an [`Alternative`].
+    /// If [`Self::with_left()`] and [`Self::without_left()`] both return
+    /// [`Err`], convert `self` into a [`Self::Alternative`].
     ///
     /// If one of `with_left()` and `with_right()` always returns [`Ok`], this
     /// method will not be called, but you have to implement it anyway. I
-    /// suggest you implement it as `ExprParser::missing()`.
+    /// suggest you implement it as [`Parser::missing()`].
     fn alternative(self) -> Self::Alternative;
 }
 
@@ -152,9 +150,9 @@ impl Stack {
 
 // ----------------------------------------------------------------------------
 
-/// A [`Parser`] the recognises [`Expr`]s.
+/// A [`crate::Parser`] the recognises [`Expr`]s.
 #[derive(Debug, Clone)]
-pub struct ExprParser<I: Push<Expr>> {
+pub struct Parser<I: P<Expr>> {
     /// The output stream.
     inner: I,
 
@@ -165,9 +163,9 @@ pub struct ExprParser<I: Push<Expr>> {
     expr: Option<Expr>,
 }
 
-impl<I: Push<Expr>> ExprParser<I> {
+impl<I: P<Expr>> Parser<I> {
     pub fn new(inner: I) -> Self {
-        ExprParser {inner, stack: Default::default(), expr: None}
+        Self {inner, stack: Default::default(), expr: None}
     }
 
     /// Returns `MISSING_EXPR` suitably wrapped.
@@ -193,7 +191,7 @@ impl<I: Push<Expr>> ExprParser<I> {
         token.without_left()
     }
 
-    /// Called by [`Push::push()`] to decide how to interpret `token`.
+    /// Called by [`P::push()`] to decide how to interpret `token`.
     ///
     /// If `token` can be part of an [`Expr`], process any [`Waiting`]s that
     /// have a high enough [`Precedence`] not to contain it, and return `Ok()`.
@@ -211,7 +209,7 @@ impl<I: Push<Expr>> ExprParser<I> {
     }
 }
 
-impl<I: Push<Expr>> Parser for ExprParser<I> {
+impl<I: P<Expr>> crate::Parser for Parser<I> {
     fn error(&mut self, error: E) {
         if let Some(expr) = self.expr.take() {
             let expr = self.stack.flush(expr);
@@ -224,7 +222,7 @@ impl<I: Push<Expr>> Parser for ExprParser<I> {
     }
 }
 
-impl<T: Part, I: Push<Expr> + Push<T::Alternative>> Push<T> for ExprParser<I> {
+impl<T: Part, I: P<Expr> + P<T::Alternative>> P<T> for Parser<I> {
     fn push(&mut self, token: T) {
         match self.push_helper(token) {
             Ok(Complete(expr)) => { self.expr = Some(expr); },
@@ -234,7 +232,7 @@ impl<T: Part, I: Push<Expr> + Push<T::Alternative>> Push<T> for ExprParser<I> {
     }
 }
 
-impl<I: Push<Expr> + Push<Keyword> + Flush> Flush for ExprParser<I> {
+impl<I: P<Expr> + crate::Flush> crate::Flush for Parser<I> {
     type Output = I::Output;
     fn flush(&mut self) -> Self::Output {
         if !self.stack.is_empty() || self.expr.is_some() {
@@ -244,4 +242,22 @@ impl<I: Push<Expr> + Push<Keyword> + Flush> Flush for ExprParser<I> {
         }
         self.inner.flush()
     }
+}
+
+// ----------------------------------------------------------------------------
+
+/// A type that is never constructed but that Rust wants to know anyway.
+type DUMMY = &'static dyn Fn(Box<Expr>) -> MaybeExpr;
+
+/// A token type ignored by [`Parser`].
+pub trait Spectator: Sized {}
+
+impl Spectator for span::Comment {}
+impl Spectator for char {}
+
+impl<T: Spectator> Part for T {
+    fn with_left(self) -> Result<(Precedence, DUMMY), Self> { Err(self) }
+    fn without_left(self) -> Result<MaybeExpr, Self> { Err(self) }
+    type Alternative = Self;
+    fn alternative(self) -> Self::Alternative { self }
 }
