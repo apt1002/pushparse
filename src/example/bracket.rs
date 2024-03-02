@@ -140,6 +140,7 @@ impl Spectator for span::StringLiteral {}
 impl Spectator for word::Whitespace {}
 impl Spectator for word::Alphanumeric {}
 impl Spectator for word::Symbolic {}
+impl Spectator for word::Keyword {}
 impl<T: Bracket> Spectator for T {}
 
 // ----------------------------------------------------------------------------

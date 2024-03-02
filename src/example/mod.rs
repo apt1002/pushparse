@@ -29,4 +29,6 @@ pub mod word;
 
 pub mod bracket;
 
+pub mod atom;
+
 pub mod expr;
