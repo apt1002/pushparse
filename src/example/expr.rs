@@ -88,10 +88,10 @@ use MaybeExpr::*;
 pub trait Part: Sized {
     /// If `self` is an infix or postfix operator, return its binding strength,
     /// and callback to turn its left operand into a [`MaybeExpr`].
-    fn with_left(self) -> Result<(
-        Precedence,
-        impl Fn(Box<Expr>) -> MaybeExpr,
-    ), Self>;
+    fn with_left(self) -> Result<
+        (Precedence, impl Fn(Box<Expr>) -> MaybeExpr),
+        Self,
+    >;
 
     /// If `self` is a prefix or nonfix operator, turn it into a [`MaybeExpr`].
     fn without_left(self) -> Result<MaybeExpr, Self>;
@@ -256,7 +256,13 @@ impl Spectator for span::Comment {}
 impl Spectator for char {}
 
 impl<T: Spectator> Part for T {
-    fn with_left(self) -> Result<(Precedence, DUMMY), Self> { Err(self) }
+    fn with_left(self) -> Result<
+        (Precedence, impl Fn(Box<Expr>) -> MaybeExpr),
+        Self,
+    > {
+        Err::<(_, DUMMY), _>(self)
+    }
+
     fn without_left(self) -> Result<MaybeExpr, Self> { Err(self) }
     type Alternative = Self;
     fn alternative(self) -> Self::Alternative { self }
