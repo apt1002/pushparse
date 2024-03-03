@@ -9,6 +9,7 @@
 //! - [`word`] - Recognise whitespace, alphanumeric and punctuation words, and
 //!   keywords.
 //! - [`bracket`] - Match brackets.
+//! - [`atom`] - Recognise fragments of mathematical expressions.
 //! - [`expr`] - A precedence parser for mathematical expressions.
 //!
 //! Each module typically defines some subset of the following:

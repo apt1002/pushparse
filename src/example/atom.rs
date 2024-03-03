@@ -14,6 +14,7 @@
 use crate::{E, Push as P};
 use super::{escape, span, word, bracket};
 use word::{Alphanumeric};
+use bracket::{Bracket};
 
 /// Represents a field projection operator: the `.field` part of `x.field`.
 pub struct Field(pub String);
@@ -96,6 +97,18 @@ pub trait Spectator {}
 
 impl<T: Spectator, I: Push + P<T>> crate::NeverPush<T> for Parser<I> {}
 
+impl<
+    B: Spectator + bracket::Spectator,
+    I: Push + Bracket<B>,
+> Bracket<B> for Parser<I> where
+    I::Parser: Push,
+{
+    const OPEN: char = I::OPEN;
+    const CLOSE: char = I::CLOSE;
+    type Parser = Parser<I::Parser>;
+    fn new_parser(&self) -> Self::Parser { Parser::new(self.inner.new_parser()) }
+}
+
 impl Spectator for escape::Sequence {}
 impl Spectator for span::Comment {}
 impl Spectator for span::CharLiteral {}
@@ -103,7 +116,6 @@ impl Spectator for span::StringLiteral {}
 impl Spectator for word::Whitespace {}
 impl Spectator for word::Symbolic {}
 impl Spectator for word::Keyword {}
-impl<T: bracket::Bracket> Spectator for T {}
 
 // ----------------------------------------------------------------------------
 
