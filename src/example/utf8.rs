@@ -1,13 +1,13 @@
 //! Turn UTF-8 byte sequences into characters.
 //!
-//! - [`Parser`] - a [`crate::Parser`] implementation that accepts:
+//! - [`Parser`] - a [`crate::Parse`] implementation that accepts:
 //!   - [`u8`]
 //! - The output token types are:
 //!   - [`char`]
 //! - In addition, any type that implements [`Spectator`] is accepted and
 //!   passed on unchanged.
 
-use crate::{E, Push as P, Parser as _};
+use crate::{E, Push as P, Parse};
 
 pub const MISSING: E = "Invalid UTF-8: missing continuation byte";
 pub const SPURIOUS: E = "Invalid UTF-8: spurious continuation byte";
@@ -35,7 +35,7 @@ impl<I: P<char>> Parser<I> {
     pub fn new(inner: I) -> Self { Parser {inner, bits: 0, count: 0} }
 }
 
-impl<I: P<char>> crate::Wrapper for Parser<I> {
+impl<I: P<char>> crate::Wrap for Parser<I> {
     type Inner = I;
 
     fn inner(&mut self) -> &mut Self::Inner { &mut self.inner }

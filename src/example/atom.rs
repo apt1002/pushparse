@@ -1,6 +1,6 @@
 //! Recognise fragments of mathematical espressions.
 //!
-//! - [`Parser`] - a [`crate::Parser`] implementation that accepts:
+//! - [`Parser`] - a [`crate::Parse`] implementation that accepts:
 //!   - [`char`]
 //!   - [`Alphanumeric`]
 //! - [`Push`] - a trait that specifies the output token types:
@@ -14,7 +14,6 @@
 use crate::{E, Push as P};
 use super::{escape, span, word, bracket};
 use word::{Alphanumeric};
-use bracket::{Bracket};
 
 /// Represents a field projection operator: the `.field` part of `x.field`.
 pub struct Field(pub String);
@@ -32,7 +31,7 @@ impl<I: P<char> + P<Alphanumeric> + P<Field> + P<Dots>> Push for I {}
 
 // ----------------------------------------------------------------------------
 
-/// A [`crate::Parser`] that recognises [`Field`]s.
+/// A parser that recognises [`Field`]s.
 #[derive(Debug, Clone)]
 pub struct Parser<I: Push> {
     /// The output stream.
@@ -46,7 +45,7 @@ impl<I: Push> Parser<I> {
     pub fn new(inner: I) -> Self { Self {inner, num_dots: 0} }
 }
 
-impl<I: Push> crate::Wrapper for Parser<I> {
+impl<I: Push> crate::Wrap for Parser<I> {
     type Inner = I;
 
     fn inner(&mut self) -> &mut Self::Inner { &mut self.inner }
@@ -99,8 +98,8 @@ impl<T: Spectator, I: Push + P<T>> crate::NeverPush<T> for Parser<I> {}
 
 impl<
     B: Spectator + bracket::Spectator,
-    I: Push + Bracket<B>,
-> Bracket<B> for Parser<I> where
+    I: Push + bracket::Push<B>,
+> bracket::Push<B> for Parser<I> where
     I::Parser: Push,
 {
     const OPEN: char = I::OPEN;
@@ -128,11 +127,11 @@ mod tests {
     enum Token {Error(E), Ws, An(String), Sy, Kw, F(String), D(usize), Char(char)}
     use Token::*;
 
-    /// A [`crate::Parser`] that converts everything to a [`Token`].
+    /// A parser that converts everything to a [`Token`].
     #[derive(Debug, Default, Clone, PartialEq)]
     struct Buffer(Vec<Token>);
 
-    impl crate::Parser for Buffer {
+    impl crate::Parse for Buffer {
         fn error(&mut self, error: E) { self.0.push(Error(error)); }
     }
 

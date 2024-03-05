@@ -1,6 +1,6 @@
 //! Recognise escape sequences such as `\n` and `\u000A`.
 //!
-//! - [`Parser`] - a [`crate::Parser`] implementation that accepts:
+//! - [`Parser`] - a [`crate::Parse`] implementation that accepts:
 //!   - [`char`]
 //! - [`Push`] - a trait that specifies the output token types:
 //!   - [`char`]
@@ -8,7 +8,7 @@
 //! - In addition, any type that implements [`Spectator`] is accepted and
 //!   passed on unchanged.
 
-use crate::{E, Push as P, Parser as _};
+use crate::{E, Push as P, Parse};
 
 /// Represents an escape sequence that represents `c`.
 pub struct Sequence(pub char);
@@ -70,7 +70,7 @@ enum State {
 
 use State::*;
 
-/// A [`crate::Parser`] that accepts `char`s and generates [`Sequence`]s,
+/// A parser that accepts `char`s and generates [`Sequence`]s,
 /// passing on any other `char`s.
 #[derive(Debug, Clone)]
 pub struct Parser<I: Push> {
@@ -102,7 +102,7 @@ impl<I: Push> Parser<I> {
     }
 }
 
-impl<I: Push> crate::Wrapper for Parser<I> {
+impl<I: Push> crate::Wrap for Parser<I> {
     type Inner = I;
 
     fn inner(&mut self) -> &mut Self::Inner { &mut self.inner }
@@ -207,11 +207,11 @@ mod tests {
     enum Token {Error(E), Char(char), Seq(char)}
     use Token::*;
 
-    /// A [`crate::Parser`] that converts everything to a [`Token`].
+    /// A parser that converts everything to a [`Token`].
     #[derive(Debug, Default, Clone, PartialEq)]
     struct Buffer(Vec<Token>);
 
-    impl crate::Parser for Buffer {
+    impl Parse for Buffer {
         fn error(&mut self, error: E) { self.0.push(Error(error)); }
     }
 

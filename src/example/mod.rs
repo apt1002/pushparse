@@ -1,4 +1,4 @@
-//! A collection of reusable and replaceable [`crate::Parser`] implementations.
+//! A collection of reusable and replaceable [`crate::Parse`] implementations.
 //! Used together, these implement a parser for a language similar to
 //! Javascript. You can use them, or copy and modify them, as you see fit.
 //!
@@ -13,7 +13,7 @@
 //! - [`expr`] - A precedence parser for mathematical expressions.
 //!
 //! Each module typically defines some subset of the following:
-//! - `Parser` the `crate::Parser` implementation.
+//! - `Parser` the `crate::Parse` implementation.
 //! - `Push` a trait which needs to be implemented by whatever `Parser` feeds.
 //! - `Spectator` a trait which can be implemented by any token type that you
 //!   want to pass through `Parser` unchanged.

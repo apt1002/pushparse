@@ -3,7 +3,7 @@
 //! Types that want to be included in expressions must implement trait [`Part`]
 //! in order to define their binding precedence.
 //!
-//! - [`Parser`] - a [`crate::Parser`] implementation that accepts:
+//! - [`Parser`] - a [`crate::Parse`] implementation that accepts:
 //!   - Any type `T` implementing [`Part`]
 //! - The output token types are:
 //!   - [`Expr`]
@@ -11,7 +11,7 @@
 //! - In addition, any type that implements [`Spectator`] is accepted and
 //!   passed on unchanged.
 
-use crate::{E, Push as P};
+use crate::{E, Push as P, Parse, Flush};
 use super::{span, word};
 use word::{Keyword, Alphanumeric};
 
@@ -150,7 +150,7 @@ impl Stack {
 
 // ----------------------------------------------------------------------------
 
-/// A [`crate::Parser`] the recognises [`Expr`]s.
+/// A parser the recognises [`Expr`]s.
 #[derive(Debug, Clone)]
 pub struct Parser<I: P<Expr>> {
     /// The output stream.
@@ -209,7 +209,7 @@ impl<I: P<Expr>> Parser<I> {
     }
 }
 
-impl<I: P<Expr>> crate::Parser for Parser<I> {
+impl<I: P<Expr>> Parse for Parser<I> {
     fn error(&mut self, error: E) {
         if let Some(expr) = self.expr.take() {
             let expr = self.stack.flush(expr);
@@ -232,7 +232,7 @@ impl<T: Part, I: P<Expr> + P<T::Alternative>> P<T> for Parser<I> {
     }
 }
 
-impl<I: P<Expr> + crate::Flush> crate::Flush for Parser<I> {
+impl<I: P<Expr> + Flush> Flush for Parser<I> {
     type Output = I::Output;
     fn flush(&mut self) -> Self::Output {
         if !self.stack.is_empty() || self.expr.is_some() {

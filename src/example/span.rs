@@ -1,6 +1,6 @@
 //! Recognise C-style comments and string and character literals.
 //!
-//! - [`Parser`] - a [`crate::Parser`] implementation that accepts:
+//! - [`Parser`] - a [`crate::Parse`] implementation that accepts:
 //!   - [`char`]
 //!   - [`escape::Sequence`]
 //! - [`Push`] - a trait that specifies the output token types:
@@ -11,7 +11,7 @@
 //! - In addition, any type that implements [`Spectator`] is accepted and
 //!   passed on unchanged.
 
-use crate::{E, Push as P, Parser as _};
+use crate::{E, Push as P, Parse};
 use super::{escape};
 
 /// Represents a comment.
@@ -64,7 +64,7 @@ enum State {
 
 use State::*;
 
-/// A [`crate::Parser`] that recognizes comments, and character and string literals.
+/// A parser that recognizes comments, and character and string literals.
 #[derive(Debug, Clone)]
 pub struct Parser<I: Push> {
     /// The output stream.
@@ -79,7 +79,7 @@ impl<I: Push> Parser<I> {
     pub fn new(inner: I) -> Self { Self {inner, state: Home} }
 }
 
-impl<I: Push> crate::Wrapper for Parser<I> {
+impl<I: Push> crate::Wrap for Parser<I> {
     type Inner = I;
 
     fn inner(&mut self) -> &mut Self::Inner { &mut self.inner }
@@ -242,11 +242,11 @@ mod tests {
     enum Token {Error(E), Co, CL(CharLiteral), SL(StringLiteral), Char(char)}
     use Token::*;
 
-    /// A [`crate::Parser`] that converts everything to a [`Token`].
+    /// A parser that converts everything to a [`Token`].
     #[derive(Debug, Default, Clone, PartialEq)]
     struct Buffer(Vec<Token>);
 
-    impl crate::Parser for Buffer {
+    impl Parse for Buffer {
         fn error(&mut self, error: E) { self.0.push(Error(error)); }
     }
 

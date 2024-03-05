@@ -1,6 +1,6 @@
 //! Recognise whitespace, alphanumeric and punctuation words, and keywords.
 //!
-//! - [`Parser`] - a [`crate::Parser`] implementation that accepts:
+//! - [`Parser`] - a [`crate::Parse`] implementation that accepts:
 //!   - [`char`]
 //! - [`Push`] - a trait that specifies the output token types:
 //!   - [`char`]
@@ -58,7 +58,7 @@ enum State {
     Symbolic,
 }
 
-/// A [`crate::Parser`] that recognizes [`Whitespace`]s, [`Alphanumeric`]s and
+/// A parser that recognizes [`Whitespace`]s, [`Alphanumeric`]s and
 /// [`Symbolic`]s. Reserved words (alphanumeric or operators) are replaced with
 /// [`Keyword`]s.
 #[derive(Debug, Clone)]
@@ -93,7 +93,7 @@ impl<I: Push> Parser<I> {
     }
 }
 
-impl<I: Push> crate::Wrapper for Parser<I> {
+impl<I: Push> crate::Wrap for Parser<I> {
     type Inner = I;
 
     fn inner(&mut self) -> &mut Self::Inner { &mut self.inner }
@@ -173,11 +173,11 @@ mod tests {
     enum Token {Error(E), Ws(String), An(String), Op(String), Kw(usize), Co, CL(char), SL(String), Char(char)}
     use Token::*;
 
-    /// A [`Parser`] that converts everything to a [`Token`].
+    /// A parser that converts everything to a [`Token`].
     #[derive(Debug, Default, Clone, PartialEq)]
     struct Buffer(Vec<Token>);
 
-    impl crate::Parser for Buffer {
+    impl crate::Parse for Buffer {
         fn error(&mut self, error: E) { self.0.push(Error(error)); }
     }
 

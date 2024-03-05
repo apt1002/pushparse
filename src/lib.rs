@@ -7,49 +7,49 @@ pub type E = &'static str;
 
 /// The push parser protocol.
 ///
-/// To be useful, a type that implements `Parser` should also implement
+/// To be useful, a type that implements `Parse` should also implement
 /// [`Push`] for at least one type of input token (other than [`E`]).
 ///
-/// A `Parser` for which the concept of "end of file" makes sense should also
-/// implement `Flush`.
-pub trait Parser {
+/// A `Parse` for which the concept of "end of file" makes sense should also
+/// implement [`Flush`].
+pub trait Parse {
     /// Process `error`, possibly discarding some of the buffered input.
     fn error(&mut self, error: E);
 }
 
 // ----------------------------------------------------------------------------
 
-/// [`Parser`]s that produce an output at the end of the input.
-pub trait Flush: Parser {
+/// Produce an output at the end of the input.
+pub trait Flush: Parse {
     /// A completely parsed file (which may contain errors).
     type Output;
 
-    /// Feed "end of file" to this `Parser`, forcing it to process any buffered
+    /// Feed "end of file" to this parse, forcing it to process any buffered
     /// input, and retrieve the [`Self::Output`].
     ///
-    /// The `Parser` is reset to its initial state, and can be used again.
+    /// `Self` is reset to its initial state, and can be used again.
     fn flush(&mut self) -> Self::Output;
 }
 
 // ----------------------------------------------------------------------------
 
-/// [`Parser`]s that can accept tokens of type `T`.
+/// Parsers that can accept tokens of type `T`.
 ///
-/// One `Parser` may implement `Push<T>` for several types `T`.
-pub trait Push<T>: Parser {
-    /// Feed `token` to this `Parser`, and perform any resulting actions.
+/// One parse may implement `Push<T>` for several types `T`.
+pub trait Push<T>: Parse {
+    /// Feed `token` to this parser, and perform any resulting actions.
     fn push(&mut self, token: T);
 }
 
 // ----------------------------------------------------------------------------
 
-/// A trivial [`Parser`] that merely collects tokens.
+/// A trivial parser that merely collects tokens.
 #[derive(Default, Debug, Clone)]
 pub struct Buffer<T> {
     tokens: Vec<Result<T, E>>,
 }
 
-impl<T> Parser for Buffer<T> {
+impl<T> Parse for Buffer<T> {
     fn error(&mut self, error: E) { self.tokens.push(Err(error)); }
 }
 
@@ -65,42 +65,43 @@ impl<T> Flush for Buffer<T> {
 
 // ----------------------------------------------------------------------------
 
-/// [`Parser`]s that feed their output to another `Parser`.
+/// Parsers that feed their output to another parser.
 ///
-/// `Wrapper`s get a blanket implementations of several traits:
-/// - [`Parser`] itself.
+/// Parsers that implement `Wrap`s get a blanket implementations of several
+/// traits:
+/// - [`Parse`] itself.
 /// - [`Flush`], if [`Self::Inner`] implements `Flush`.
 /// - [`Push`] if `Self` implements [`MaybePush`].
-pub trait Wrapper: Parser {
-    /// The `Parser` that receives the output of this `Wrapper`.
-    type Inner: Parser;
+pub trait Wrap: Parse {
+    /// The parser that this wrapper feeds.
+    type Inner: Parse;
 
-    /// Returns the wrapped `Parser`.
+    /// Returns the wrapped parser.
     fn inner(&mut self) -> &mut Self::Inner;
 
-    /// Process any input buffered by this `Wrapper` and return it to its
+    /// Process any input buffered by this wrapper and return it to its
     /// initial state, but do not flush `self.inner()`.
     fn partial_flush(&mut self);
 
-    /// Discard any input buffered by this `Wrapper`, and return it to its
+    /// Discard any input buffered by this wrapper, and return it to its
     /// initial state. `self.inner()` is unaffected.
     fn partial_reset(&mut self);
 
-    /// An error message to use when this `Parser` is in its initial state and
+    /// An error message to use when this parser is in its initial state and
     /// receives an input token that it cannot accept.
     ///
     /// Typically the message will be "Syntax error: missing {noun}".
     const MISSING: E;
 }
 
-impl<P: Wrapper> Parser for P {
+impl<P: Wrap> Parse for P {
     fn error(&mut self, error: E) {
         self.partial_reset();
         self.inner().error(error);
     }
 }
 
-impl<P: Wrapper> Flush for P where P::Inner: Flush {
+impl<P: Wrap> Flush for P where P::Inner: Flush {
     type Output = <P::Inner as Flush>::Output;
 
     fn flush(&mut self) -> Self::Output {
@@ -111,7 +112,7 @@ impl<P: Wrapper> Flush for P where P::Inner: Flush {
 
 // ----------------------------------------------------------------------------
 
-/// A simpler way to implement [`Push<T>`] for a [`Wrapper`].
+/// A simpler way to implement [`Push<T>`] for a wrapper.
 ///
 /// The implementation of `push(token)` is equivalent to the following:
 /// ```text
@@ -122,15 +123,15 @@ impl<P: Wrapper> Flush for P where P::Inner: Flush {
 ///     }
 /// }
 /// ```
-pub trait MaybePush<T>: Wrapper {
-    /// Try to feed `token` to this `Parser`.
+pub trait MaybePush<T>: Wrap {
+    /// Try to feed `token` to this parser.
     ///
     /// If `token` is accepted in the current state, perform any resulting
     /// actions and return `None`, otherwise return `Some(token)`.
     fn maybe_push(&mut self, token: T) -> Option<T>;
 }
 
-impl<T, P: Wrapper + MaybePush<T>> Push<T> for P {
+impl<T, P: Wrap + MaybePush<T>> Push<T> for P {
     fn push(&mut self, token: T) {
         if let Some(token) = self.maybe_push(token) {
             self.partial_flush();
@@ -143,12 +144,12 @@ impl<T, P: Wrapper + MaybePush<T>> Push<T> for P {
 
 // ----------------------------------------------------------------------------
 
-/// A trivial way to implement [`Push<T>`] for a [`Wrapper`].
-pub trait NeverPush<T>: Wrapper {}
+/// A trivial way to implement [`Push<T>`] for a wrapper.
+pub trait NeverPush<T>: Wrap {}
 
 // Ideally we'd implement `Push<T>` directly but Rust won't let us.
 // Instead we implement `MaybePush<T>` to achieve the desired effect.
-impl<T, P: Wrapper + NeverPush<T>> MaybePush<T> for P where P::Inner: Push<T> {
+impl<T, P: Wrap + NeverPush<T>> MaybePush<T> for P where P::Inner: Push<T> {
     fn maybe_push(&mut self, token: T) -> Option<T> {
         self.partial_flush();
         self.inner().push(token);
