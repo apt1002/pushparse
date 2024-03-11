@@ -1,269 +1,202 @@
 //! A precedence parser for mathematical expressions.
 //!
-//! Types that want to be included in expressions must implement trait [`Part`]
-//! in order to define their binding precedence.
-//!
-//! - [`Parser`] - a [`crate::Parse`] implementation that accepts:
-//!   - Any type `T` implementing [`Part`]
+//! - [`Parser<X>`] - a [`crate::Parse`] implementation that accepts:
+//!   - [`Atom`]
+//!   - [`Prefix`]
+//!   - [`Postfix`]
+//!   - [`Infix`]
 //! - The output token types are:
-//!   - [`Expr`]
-//!   - [`Part::Alternative`]
+//!   - [`X`]
 //! - In addition, any type that implements [`Spectator`] is accepted and
 //!   passed on unchanged.
 
+use std::fmt::{Debug};
 use crate::{E, Push as P, Parse, Flush};
-use super::{span, word};
-use word::{Keyword, Alphanumeric};
-
-pub const MISSING_EXPR: E = "Missing expression";
+use super::{escape, span, word, atom};
 
 // ----------------------------------------------------------------------------
-
-/// Represents an expression.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Expr {
-    /// A syntax error.
-    Error(E),
-
-    /// An identifier or literal number value.
-    Name(String),
-
-    /// A literal string value.
-    String(String),
-
-    /// A literal character value.
-    Char(char),
-
-    /// Comma-separated [`Expr`]s in round brackets.
-    Round(Box<[Expr]>),
-
-    /// A keyword operator applied to zero, one or two operands.
-    Op(Option<Box<Expr>>, Keyword, Option<Box<Expr>>),
-
-    /// Field access.
-    Field(Box<Expr>, Alphanumeric),
-
-    /// Function or macro call.
-    Call(Box<Expr>, Box<[Expr]>),
-}
-
-// ----------------------------------------------------------------------------
-
-/* TODO: impl `Part` for common operators:
-    ('right', ['?', ':']),
-    ('left', ['||']),
-    ('left', ['&&']),
-    ('left', ['|']),
-    ('left', ['^']),
-    ('left', ['&']),
-    ('left', ['==', '!=']),
-    ('left', ['<', '>', '<=', '>=', '<>']),
-    ('right', ['<<', '>>', '>>>']),
-    ('left', ['+', '-']),
-    ('left', ['*', '/', '%']),
-    ('right', ['**']),
-*/
 
 /// Represents the binding precedence of an operator.
 /// No left-`Precedence` is ever equal to a right-`Precedence`.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Precedence(u8);
 
-/// Represents an [`Expr`] that is missing a right operand.
-#[derive(Debug, Clone)]
-pub struct Waiting {left: Option<Box<Expr>>, op: Keyword, right: Precedence}
+/// Represents an expression of type `X` that is missing a right operand.
+pub trait Waiting<X>: Debug + Clone {
+    /// The [`Precedence`] with which `self` binds to its right operand.
+    fn right(&self) -> Precedence;
 
-impl Waiting {
-    /// Supply the operand that `self` was waiting for.
-    fn apply(self, right: Expr) -> Expr {
-        Expr::Op(self.left, self.op, Some(Box::new(right)))
-    }
+    /// Supply the right operand of `self`, or `None` if it is missing.
+    fn apply(self, right: Option<X>) -> X;
 }
 
-/// Either a complete [`Expr`] or one [`Waiting`] for its right operand.
-pub enum MaybeExpr {Complete(Expr), Incomplete(Waiting)}
-use MaybeExpr::*;
+pub trait Expr: Debug + Sized {
+    /// The type of a `Self` that is missing a right operand.
+    type Waiting: Waiting<Self>;
+}
 
-/// Implemented by tokens that can form part of an [`Expr`].
-pub trait Part: Sized {
-    /// If `self` is an infix or postfix operator, return its binding strength,
-    /// and callback to turn its left operand into a [`MaybeExpr`].
-    fn with_left(self) -> Result<
-        (Precedence, impl Fn(Box<Expr>) -> MaybeExpr),
-        Self,
-    >;
+/// A token that is an `X` on its own.
+pub struct Atom<X: Expr>(X);
 
-    /// If `self` is a prefix or nonfix operator, turn it into a [`MaybeExpr`].
-    fn without_left(self) -> Result<MaybeExpr, Self>;
+/// A token that makes an `X` if followed by an `X`.
+pub struct Prefix<X: Expr>(X::Waiting);
 
-    /// The return type of [`Self::alternative()`].
-    type Alternative;
+/// A token that makes an `X` if preceded by an `X`.
+pub struct Postfix<F> {
+    /// The [`Precedence`] with which `self` binds to its left operand.
+    pub left: Precedence,
 
-    /// If [`Self::with_left()`] and [`Self::without_left()`] both return
-    /// [`Err`], convert `self` into a [`Self::Alternative`].
-    ///
-    /// If one of `with_left()` and `with_right()` always returns [`Ok`], this
-    /// method will not be called, but you have to implement it anyway. I
-    /// suggest you implement it as [`Parser::missing()`].
-    fn alternative(self) -> Self::Alternative;
+    /// Supply the left operand of `self`, or `None` if it is missing.
+    pub apply: F,
+}
+
+/// A token that makes an `X` if preceded and followed by an `X`.
+pub struct Infix<F> {
+    /// The [`Precedence`] with which `self` binds to its left operand.
+    pub left: Precedence,
+
+    /// Supply the left operand of `self`, or `None` if it is missing.
+    pub apply: F,
 }
 
 // ----------------------------------------------------------------------------
 
 /// A stack of partial [`Expr`]s that are waiting for a right operand.
 #[derive(Default, Debug, Clone)]
-struct Stack(Vec<Waiting>);
+struct Stack<X: Expr>(Vec<X::Waiting>);
 
-impl Stack {
-    /// Tests if there are any [`Waiting`]s.
-    fn is_empty(&self) -> bool { self.0.len() == 0 }
-
-    /// Forget all the [`Waiting`]s. Useful in case of an error.
-    fn clear(&mut self) { self.0.clear() }
-
+impl<X: Expr> Stack<X> {
     /// Append `waiting`.
-    fn push(&mut self, waiting: Waiting) { self.0.push(waiting); }
+    fn push(&mut self, waiting: X::Waiting) { self.0.push(waiting); }
 
     /// If the last [`Waiting`] exists and has a right [`Precedence`] larger
     /// than `left`, returns it.
-    fn pop_if_higher(&mut self, left: Precedence) -> Option<Waiting> {
+    fn pop_if_higher(&mut self, left: Precedence) -> Option<X::Waiting> {
         if let Some(waiting) = self.0.last() {
-            if waiting.right > left { return self.0.pop(); }
+            if waiting.right() > left { return self.0.pop(); }
         }
         None
     }
 
     /// If any [`Waiting`]s on [`self.stack`] have a higher [`Precedence`] than
     /// `left`, apply them to `expr`.
-    fn flush_up_to(&mut self, mut expr: Expr, left: Precedence) -> Expr {
+    fn flush_up_to(&mut self, mut expr: Option<X>, left: Precedence) -> Option<X> {
         while let Some(waiting) = self.pop_if_higher(left) {
-            expr = waiting.apply(expr);
+            expr = Some(waiting.apply(expr));
         }
         expr
     }
 
     /// Apply all [`Waiting`]s to `expr`.
-    fn flush(&mut self, expr: Expr) -> Expr {
+    fn flush(&mut self, expr: Option<X>) -> Option<X> {
         self.flush_up_to(expr, Precedence(u8::MAX))
     }
 }
 
 // ----------------------------------------------------------------------------
 
-/// A parser the recognises [`Expr`]s.
+/// A parser that resolves the binding of operators.
 #[derive(Debug, Clone)]
-pub struct Parser<I: P<Expr>> {
+pub struct Parser<X: Expr, I: P<X>> {
     /// The output stream.
     inner: I,
 
-    /// Partial expressions that are waiting for an operand.
-    stack: Stack,
+    /// Partial `X`s that are waiting for an operand.
+    stack: Stack<X>,
 
-    /// An [`Expr`] that is waiting for infix and postfix operators.
-    expr: Option<Expr>,
+    /// An [`X`] that is waiting for infix and postfix operators.
+    expr: Option<X>,
 }
 
-impl<I: P<Expr>> Parser<I> {
+impl<X: Expr, I: P<X>> Parser<X, I> {
     pub fn new(inner: I) -> Self {
-        Self {inner, stack: Default::default(), expr: None}
+        Self {inner, stack: Stack(Vec::new()), expr: None}
     }
 
-    /// Returns `MISSING_EXPR` suitably wrapped.
-    pub fn missing() -> Expr { Expr::Error(MISSING_EXPR) }
+    /// Returns `true` if the last token was the end of an expression.
+    pub fn has_expr(&self) -> bool { self.expr.is_some() }
 
-    /// Try to interpret `token` as an infix or postfix operator.
-    fn with_left<T: Part>(&mut self, expr: Expr, token: T) -> Result<MaybeExpr, T> {
-        match token.with_left() {
-            Ok((left, apply)) => {
-                let expr = self.stack.flush_up_to(expr, left);
-                Ok(apply(Box::new(expr)))
-            },
-            Err(token) => {
-                let expr = self.stack.flush(expr);
-                self.inner.push(expr);
-                Err(token)
-            },
+    fn partial_flush(&mut self) {
+        if let Some(expr) = self.stack.flush(self.expr.take()) {
+            self.inner.push(expr);
         }
     }
 
-    /// Try to interpret `token` as a nonfix or prefix operator.
-    fn without_left<T: Part>(&mut self, token: T) -> Result<MaybeExpr, T> {
-        token.without_left()
-    }
-
-    /// Called by [`P::push()`] to decide how to interpret `token`.
-    ///
-    /// If `token` can be part of an [`Expr`], process any [`Waiting`]s that
-    /// have a high enough [`Precedence`] not to contain it, and return `Ok()`.
-    /// Otherwise, process all [`Waiting`]s and return `Err()`.
-    fn push_helper<T: Part>(&mut self, token: T) -> Result<MaybeExpr, T> {
-        if let Some(expr) = self.expr.take() {
-            self.with_left(expr, token).or_else(
-                |token| self.without_left(token)
-            )
-        } else {
-            self.without_left(token).or_else(
-                |token| self.with_left(Self::missing(), token)
-            )
-        }
+    pub fn spectate<T>(&mut self, token: T) where I: P<T> {
+        self.partial_flush();
+        self.inner.push(token);
     }
 }
 
-impl<I: P<Expr>> Parse for Parser<I> {
+impl<X: Expr, I: P<X>> Parse for Parser<X, I> {
     fn error(&mut self, error: E) {
-        if let Some(expr) = self.expr.take() {
-            let expr = self.stack.flush(expr);
-            self.inner.push(expr);
-        } else {
-            // `error` supercedes errors about any unsatisfied [`Waiting`]s.
-            self.stack.clear();
-        }
+        self.partial_flush();
         self.inner.error(error);
     }
 }
 
-impl<T: Part, I: P<Expr> + P<T::Alternative>> P<T> for Parser<I> {
-    fn push(&mut self, token: T) {
-        match self.push_helper(token) {
-            Ok(Complete(expr)) => { self.expr = Some(expr); },
-            Ok(Incomplete(waiting)) => { self.stack.push(waiting); },
-            Err(token) => { self.inner.push(token.alternative()); },
-        }
+impl<X: Expr, I: P<X> + Flush> Flush for Parser<X, I> {
+    type Output = I::Output;
+    fn flush(&mut self) -> Self::Output {
+        self.partial_flush();
+        self.inner.flush()
     }
 }
 
-impl<I: P<Expr> + Flush> Flush for Parser<I> {
-    type Output = I::Output;
-    fn flush(&mut self) -> Self::Output {
-        if !self.stack.is_empty() || self.expr.is_some() {
-            let expr = self.expr.take().unwrap_or_else(Self::missing);
-            let expr = self.stack.flush(expr);
-            self.inner.push(expr);
-        }
-        self.inner.flush()
+impl<X: Expr, I: P<X>> P<Atom<X>> for Parser<X, I> {
+    fn push(&mut self, token: Atom<X>) {
+        if self.has_expr() { self.partial_flush(); }
+        self.expr = Some(token.0);
+    }
+    
+}
+
+impl<X: Expr, I: P<X>> P<Prefix<X>> for Parser<X, I> {
+    fn push(&mut self, token: Prefix<X>) {
+        if self.has_expr() { self.partial_flush(); }
+        self.stack.push(token.0);
+    }
+    
+}
+
+impl<
+    X: Expr,
+    I: P<X>,
+    F: FnOnce(Option<X>) -> X,
+> P<Postfix<F>> for Parser<X, I> {
+    fn push(&mut self, token: Postfix<F>) {
+        let expr = self.stack.flush_up_to(self.expr.take(), token.left);
+        self.expr = Some((token.apply)(expr));
+    }
+}
+
+impl<
+    X: Expr,
+    I: P<X>,
+    F: FnOnce(Option<X>) -> X::Waiting,
+> P<Infix<F>> for Parser<X, I> {
+    fn push(&mut self, token: Infix<F>) {
+        let expr = self.stack.flush_up_to(self.expr.take(), token.left);
+        self.stack.push((token.apply)(expr));
     }
 }
 
 // ----------------------------------------------------------------------------
 
-/// A type that is never constructed but that Rust wants to know anyway.
-type DUMMY = &'static dyn Fn(Box<Expr>) -> MaybeExpr;
-
 /// A token type ignored by [`Parser`].
-pub trait Spectator: Sized {}
+pub trait Spectator {}
 
-impl Spectator for span::Comment {}
 impl Spectator for char {}
+impl Spectator for escape::Sequence {}
+impl Spectator for span::Comment {}
+impl Spectator for span::CharLiteral {}
+impl Spectator for span::StringLiteral {}
+impl Spectator for word::Alphanumeric {}
+impl Spectator for word::Symbolic {}
+impl Spectator for word::Keyword {}
+impl Spectator for atom::Field {}
+impl Spectator for atom::Dots {}
 
-impl<T: Spectator> Part for T {
-    fn with_left(self) -> Result<
-        (Precedence, impl Fn(Box<Expr>) -> MaybeExpr),
-        Self,
-    > {
-        Err::<(_, DUMMY), _>(self)
-    }
-
-    fn without_left(self) -> Result<MaybeExpr, Self> { Err(self) }
-    type Alternative = Self;
-    fn alternative(self) -> Self::Alternative { self }
+impl<T: Spectator, X: Expr, I: P<X> + P<T>> P<T> for Parser<X, I> {
+    fn push(&mut self, token: T) { self.spectate(token); }
 }
