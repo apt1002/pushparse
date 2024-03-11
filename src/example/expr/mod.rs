@@ -1,6 +1,7 @@
 use std::mem::{replace};
 use crate::{E, Parse, Push as P, Flush};
-use super::{escape, span, word, bracket, atom};
+use super::{escape, span, word, bracket, atom, precedence};
+use precedence::{Precedence};
 
 pub const INVALID: E = "Expected a comma-separated list of expressions";
 pub const MISSING_COMMA: E = "Expressions must be comma-separated";
@@ -46,6 +47,27 @@ pub enum Expr {
 
     /// Function or macro call.
     Call(Box<Expr>, Box<[Expr]>),
+}
+
+/// Represents an [`Expr`] that is missing a right operand.
+#[derive(Debug, Clone)]
+pub struct Waiting {
+    left: Option<Box<Expr>>,
+    op: word::Keyword,
+    right: Precedence,
+}
+
+impl precedence::Expr for Expr {
+    type Waiting = Waiting;
+}
+
+impl precedence::Waiting<Expr> for Waiting {
+    fn right(&self) -> Precedence { self.right }
+
+    /// Supply the operand that `self` was waiting for.
+    fn apply(self, right: Option<Expr>) -> Expr {
+        Expr::Op(self.left, self.op, right.map(Box::new))
+    }
 }
 
 // ----------------------------------------------------------------------------
