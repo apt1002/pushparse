@@ -6,7 +6,7 @@
 //!   - [`Postfix`]
 //!   - [`Infix`]
 //! - The output token types are:
-//!   - [`X`]
+//!   - `X`
 //! - In addition, any type that implements [`Spectator`] is accepted and
 //!   passed on unchanged.
 
@@ -36,12 +36,15 @@ pub trait Expr: Debug + Sized {
 }
 
 /// A token that is an `X` on its own.
-pub struct Atom<X: Expr>(X);
+pub struct Atom<X: Expr>(pub X);
 
 /// A token that makes an `X` if followed by an `X`.
-pub struct Prefix<X: Expr>(X::Waiting);
+pub struct Prefix<X: Expr>(pub X::Waiting);
 
 /// A token that makes an `X` if preceded by an `X`.
+///
+/// `F` must implement `FnOnce(Option<X>) -> X` for some `X` that
+/// implements [`Expr`].
 pub struct Postfix<F> {
     /// The [`Precedence`] with which `self` binds to its left operand.
     pub left: Precedence,
@@ -51,6 +54,9 @@ pub struct Postfix<F> {
 }
 
 /// A token that makes an `X` if preceded and followed by an `X`.
+///
+/// `F` must implement `FnOnce(Option<X>) -> X::Waiting` for some `X` that
+/// implements [`Expr`].
 pub struct Infix<F> {
     /// The [`Precedence`] with which `self` binds to its left operand.
     pub left: Precedence,
