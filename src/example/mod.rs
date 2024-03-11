@@ -32,4 +32,4 @@ pub mod bracket;
 
 pub mod atom;
 
-pub mod expr;
+pub mod precedence;
