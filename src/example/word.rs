@@ -8,11 +8,11 @@
 //!   - [`Alphanumeric`]
 //!   - [`Symbolic`]
 //!   - [`Keyword`]
-//! - In addition, any type that implements [`Spectator`] is accepted and
+//! - In addition, any type that implements [`Spectate`] is accepted and
 //!   passed on unchanged.
 
 use std::collections::{HashMap};
-use crate::{E, Push as P};
+use crate::{E, Push as P, Spectate};
 use super::{escape, span};
 
 /// Represents a string of whitespace characters.
@@ -152,15 +152,10 @@ impl<I: Push> crate::MaybePush<char> for Parser<I> {
 
 // ----------------------------------------------------------------------------
 
-/// A token type ignored by [`Parser`].
-pub trait Spectator {}
-
-impl<T: Spectator, I: Push + P<T>> crate::NeverPush<T> for Parser<I> {}
-
-impl Spectator for escape::Sequence {}
-impl Spectator for span::Comment {}
-impl Spectator for span::CharLiteral {}
-impl Spectator for span::StringLiteral {}
+impl<I: Push> Spectate<Parser<I>> for escape::Sequence {}
+impl<I: Push> Spectate<Parser<I>> for span::Comment {}
+impl<I: Push> Spectate<Parser<I>> for span::CharLiteral {}
+impl<I: Push> Spectate<Parser<I>> for span::StringLiteral {}
 
 // ----------------------------------------------------------------------------
 

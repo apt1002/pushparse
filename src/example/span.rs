@@ -8,7 +8,7 @@
 //!   - [`Comment`]
 //!   - [`CharLiteral`]
 //!   - [`StringLiteral`]
-//! - In addition, any type that implements [`Spectator`] is accepted and
+//! - In addition, any type that implements [`crate::Spectate`] is accepted and
 //!   passed on unchanged.
 
 use crate::{E, Push as P, Parse};
@@ -223,13 +223,6 @@ impl<I: Push> crate::MaybePush<escape::Sequence> for Parser<I> {
         }
     }
 }
-
-// ----------------------------------------------------------------------------
-
-/// A token type ignored by [`Parser`].
-pub trait Spectator {}
-
-impl<T: Spectator, I: Push + P<T>> crate::NeverPush<T> for Parser<I> {}
 
 // ----------------------------------------------------------------------------
 

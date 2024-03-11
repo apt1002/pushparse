@@ -8,10 +8,10 @@
 //!   - [`Alphanumeric`]
 //!   - [`Field`]
 //!   - [`Dots`]
-//! - In addition, any type that implements [`Spectator`] is accepted and
+//! - In addition, any type that implements [`Spectate`] is accepted and
 //!   passed on unchanged.
 
-use crate::{E, Push as P};
+use crate::{E, Push as P, Spectate};
 use super::{escape, span, word, bracket};
 use word::{Alphanumeric};
 use bracket::{Bracket};
@@ -92,14 +92,9 @@ impl<I: Push> crate::MaybePush<Alphanumeric> for Parser<I> {
 
 // ----------------------------------------------------------------------------
 
-/// A token type ignored by [`Parser`].
-pub trait Spectator {}
-
-impl<T: Spectator, I: Push + P<T>> crate::NeverPush<T> for Parser<I> {}
-
 impl<
-    B: Spectator + Bracket,
     I: Push + bracket::Push<B>,
+    B: Bracket + Spectate<Parser<I>> + Spectate<Parser<I::Parser>>,
 > bracket::Push<B> for Parser<I> where
     I::Parser: Push,
 {
@@ -107,13 +102,13 @@ impl<
     fn new_parser(&self) -> Self::Parser { Parser::new(self.inner.new_parser()) }
 }
 
-impl Spectator for escape::Sequence {}
-impl Spectator for span::Comment {}
-impl Spectator for span::CharLiteral {}
-impl Spectator for span::StringLiteral {}
-impl Spectator for word::Whitespace {}
-impl Spectator for word::Symbolic {}
-impl Spectator for word::Keyword {}
+impl<I: Push> Spectate<Parser<I>> for escape::Sequence {}
+impl<I: Push> Spectate<Parser<I>> for span::Comment {}
+impl<I: Push> Spectate<Parser<I>> for span::CharLiteral {}
+impl<I: Push> Spectate<Parser<I>> for span::StringLiteral {}
+impl<I: Push> Spectate<Parser<I>> for word::Whitespace {}
+impl<I: Push> Spectate<Parser<I>> for word::Symbolic {}
+impl<I: Push> Spectate<Parser<I>> for word::Keyword {}
 
 // ----------------------------------------------------------------------------
 

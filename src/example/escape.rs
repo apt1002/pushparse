@@ -5,7 +5,7 @@
 //! - [`Push`] - a trait that specifies the output token types:
 //!   - [`char`]
 //!   - [`Sequence`]
-//! - In addition, any type that implements [`Spectator`] is accepted and
+//! - In addition, any type that implements [`crate::Spectate`] is accepted and
 //!   passed on unchanged.
 
 use crate::{E, Push as P, Parse};
@@ -294,10 +294,3 @@ mod tests {
         check(r"<\u{f}>", &[Char('<'), Seq('\u{f}'), Char('>')]);
     }
 }
-
-// ----------------------------------------------------------------------------
-
-/// A token type ignored by [`Parser`].
-pub trait Spectator {}
-
-impl<T: Spectator, I: Push + P<T>> crate::NeverPush<T> for Parser<I> {}

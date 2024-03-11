@@ -4,7 +4,7 @@
 //!   - [`u8`]
 //! - The output token types are:
 //!   - [`char`]
-//! - In addition, any type that implements [`Spectator`] is accepted and
+//! - In addition, any type that implements [`crate::Spectate`] is accepted and
 //!   passed on unchanged.
 
 use crate::{E, Push as P, Parse};
@@ -114,10 +114,3 @@ mod tests {
         check(&[0x3c, 0xff, 0x3e], &[Ok('<'), Err(RESERVED), Ok('>')]);
     }
 }
-
-// ----------------------------------------------------------------------------
-
-/// A token type ignored by [`Parser`].
-pub trait Spectator {}
-
-impl<T: Spectator, I: P<char> + P<T>> crate::NeverPush<T> for Parser<I> {}

@@ -144,21 +144,17 @@ impl<T, P: Wrap + MaybePush<T>> Push<T> for P {
 
 // ----------------------------------------------------------------------------
 
-/// A trivial way to implement [`Push<T>`] for a wrapper.
-pub trait NeverPush<T>: Wrap {}
+/// A trivial way to implement [`Push<T>`] for a wrapper `P` is to implement
+/// this trait for the token type `T`. The blanket implementation calls
+/// [`Wrap::partial_flush()`] and then passes the token to [`Wrap::inner()`].
+pub trait Spectate<P: Wrap> {}
 
 // Ideally we'd implement `Push<T>` directly but Rust won't let us.
 // Instead we implement `MaybePush<T>` to achieve the desired effect.
-impl<T, P: Wrap + NeverPush<T>> MaybePush<T> for P where P::Inner: Push<T> {
+impl<P: Wrap, T: Spectate<P>> MaybePush<T> for P where P::Inner: Push<T> {
     fn maybe_push(&mut self, token: T) -> Option<T> {
         self.partial_flush();
         self.inner().push(token);
         return None;
     }
-}
-
-// ----------------------------------------------------------------------------
-
-#[cfg(test)]
-mod tests {
 }
