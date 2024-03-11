@@ -12,7 +12,8 @@
 
 use std::fmt::{Debug};
 use crate::{E, Push as P, Parse, Flush};
-use super::{escape, span, word, atom};
+use super::{escape, span, word, bracket, atom};
+use bracket::{Bracket};
 
 // ----------------------------------------------------------------------------
 
@@ -172,6 +173,17 @@ impl<
     }
 }
 
+impl<
+    B: Bracket,
+    X: Expr,
+    I: P<X> + bracket::Push<B>,
+> bracket::Push<B> for Parser<X, I> where
+    <I as bracket::Push<B>>::Parser: P<X>,
+{
+    type Parser = Parser<X, I::Parser>;
+    fn new_parser(&self) -> Self::Parser { Parser::new(self.inner.new_parser()) }
+}
+
 // ----------------------------------------------------------------------------
 
 /// A token type ignored by [`Parser`].
@@ -187,6 +199,7 @@ impl Spectator for word::Symbolic {}
 impl Spectator for word::Keyword {}
 impl Spectator for atom::Field {}
 impl Spectator for atom::Dots {}
+impl<B: Bracket> Spectator for B {}
 
 impl<T: Spectator, X: Expr, I: P<X> + P<T>> P<T> for Parser<X, I> {
     fn push(&mut self, token: T) { self.spectate(token); }
