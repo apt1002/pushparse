@@ -61,48 +61,14 @@ pub struct Infix<F> {
 
 // ----------------------------------------------------------------------------
 
-/// A stack of partial [`Expr`]s that are waiting for a right operand.
-#[derive(Default, Debug, Clone)]
-struct Stack<X: Expr>(Vec<X::Waiting>);
-
-impl<X: Expr> Stack<X> {
-    /// Append `waiting`.
-    fn push(&mut self, waiting: X::Waiting) { self.0.push(waiting); }
-
-    /// If the last [`Waiting`] exists and has a right [`Precedence`] larger
-    /// than `left`, returns it.
-    fn pop_if_higher(&mut self, left: Precedence) -> Option<X::Waiting> {
-        if let Some(waiting) = self.0.last() {
-            if waiting.right() > left { return self.0.pop(); }
-        }
-        None
-    }
-
-    /// If any [`Waiting`]s on [`self.stack`] have a higher [`Precedence`] than
-    /// `left`, apply them to `expr`.
-    fn flush_up_to(&mut self, mut expr: Option<X>, left: Precedence) -> Option<X> {
-        while let Some(waiting) = self.pop_if_higher(left) {
-            expr = Some(waiting.apply(expr));
-        }
-        expr
-    }
-
-    /// Apply all [`Waiting`]s to `expr`.
-    fn flush(&mut self, expr: Option<X>) -> Option<X> {
-        self.flush_up_to(expr, Precedence(u8::MAX))
-    }
-}
-
-// ----------------------------------------------------------------------------
-
 /// A parser that resolves the binding of operators.
 #[derive(Debug, Clone)]
 pub struct Parser<X: Expr, I: P<X>> {
     /// The output stream.
     inner: I,
 
-    /// Partial `X`s that are waiting for an operand.
-    stack: Stack<X>,
+    /// A stack of partial [`X`]s that are waiting for a right operand.
+    stack: Vec<X::Waiting>,
 
     /// An [`X`] that is waiting for infix and postfix operators.
     expr: Option<X>,
@@ -110,14 +76,33 @@ pub struct Parser<X: Expr, I: P<X>> {
 
 impl<X: Expr, I: P<X>> Parser<X, I> {
     pub fn new(inner: I) -> Self {
-        Self {inner, stack: Stack(Vec::new()), expr: None}
+        Self {inner, stack: Vec::new(), expr: None}
     }
 
     /// Returns `true` if the last token was the end of an expression.
     pub fn has_expr(&self) -> bool { self.expr.is_some() }
 
+    /// If the last [`X::Waiting`] exists and has a right [`Precedence`] larger
+    /// than `left`, returns it.
+    fn pop_if_higher(&mut self, left: Precedence) -> Option<X::Waiting> {
+        if let Some(waiting) = self.stack.last() {
+            if waiting.right() > left { return self.stack.pop(); }
+        }
+        None
+    }
+
+    /// If any [`X::Waiting`]s on [`self.stack`] have a higher [`Precedence`]
+    /// than `left`, apply them to `expr`.
+    fn flush_up_to(&mut self, left: Precedence) -> Option<X> {
+        let mut expr = self.expr.take();
+        while let Some(waiting) = self.pop_if_higher(left) {
+            expr = Some(waiting.apply(expr));
+        }
+        expr
+    }
+
     fn partial_flush(&mut self) {
-        if let Some(expr) = self.stack.flush(self.expr.take()) {
+        if let Some(expr) = self.flush_up_to(Precedence(u8::MAX)) {
             self.inner.push(expr);
         }
     }
@@ -165,7 +150,7 @@ impl<
     F: FnOnce(Option<X>) -> X,
 > P<Postfix<F>> for Parser<X, I> {
     fn push(&mut self, token: Postfix<F>) {
-        let expr = self.stack.flush_up_to(self.expr.take(), token.left);
+        let expr = self.flush_up_to(token.left);
         self.expr = Some((token.apply)(expr));
     }
 }
@@ -176,7 +161,7 @@ impl<
     F: FnOnce(Option<X>) -> X::Waiting,
 > P<Infix<F>> for Parser<X, I> {
     fn push(&mut self, token: Infix<F>) {
-        let expr = self.stack.flush_up_to(self.expr.take(), token.left);
+        let expr = self.flush_up_to(token.left);
         self.stack.push((token.apply)(expr));
     }
 }
