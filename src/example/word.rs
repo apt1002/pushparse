@@ -99,8 +99,7 @@ impl<I: Push> crate::Wrap for Parser<I> {
     fn inner(&mut self) -> &mut Self::Inner { &mut self.inner }
 
     fn partial_flush(&mut self) {
-        let mut s = String::new();
-        std::mem::swap(&mut s, &mut self.buffer);
+        let s = std::mem::replace(&mut self.buffer, String::new());
         match self.state {
             State::Home => {},
             State::Whitespace => {
