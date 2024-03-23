@@ -12,7 +12,7 @@
 
 use std::fmt::{Debug};
 use crate::{E, Push as P, Parse, Flush};
-use super::{escape, span, word, bracket, atom};
+use super::{escape, span, keyword, word, bracket, atom};
 use bracket::{Bracket};
 
 // ----------------------------------------------------------------------------
@@ -120,6 +120,7 @@ impl<X: Expr, I: P<X>> Parser<X, I> {
     }
 }
 
+// TODO: Implement `Wrap` instead.
 impl<X: Expr, I: P<X>> Parse for Parser<X, I> {
     fn error(&mut self, error: E) {
         self.partial_flush();
@@ -187,6 +188,7 @@ impl<
 // ----------------------------------------------------------------------------
 
 /// A token type ignored by [`Parser`].
+// TODO: Replace with `crate::Spectate`.
 pub trait Spectator {}
 
 impl Spectator for char {}
@@ -194,9 +196,9 @@ impl Spectator for escape::Sequence {}
 impl Spectator for span::Comment {}
 impl Spectator for span::CharLiteral {}
 impl Spectator for span::StringLiteral {}
+impl Spectator for keyword::Keyword {}
 impl Spectator for word::Alphanumeric {}
 impl Spectator for word::Symbolic {}
-impl Spectator for word::Keyword {}
 impl Spectator for atom::Field {}
 impl Spectator for atom::Dots {}
 impl<B: Bracket> Spectator for B {}

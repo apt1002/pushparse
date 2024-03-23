@@ -15,7 +15,8 @@
 //!   of the brackets.
 
 use crate::{E, Push as P, Parse, Flush};
-use super::{escape, span, word};
+use super::{escape, span, keyword, word};
+use keyword::{Keyword};
 
 pub const MISSING_OPEN: E = "Missing open bracket";
 pub const MISSING_CLOSE: E = "Missing close bracket";
@@ -135,10 +136,10 @@ impl Spectator for escape::Sequence {}
 impl Spectator for span::Comment {}
 impl Spectator for span::CharLiteral {}
 impl Spectator for span::StringLiteral {}
+impl Spectator for Keyword {}
 impl Spectator for word::Whitespace {}
 impl Spectator for word::Alphanumeric {}
 impl Spectator for word::Symbolic {}
-impl Spectator for word::Keyword {}
 
 impl<
     T: Spectator,

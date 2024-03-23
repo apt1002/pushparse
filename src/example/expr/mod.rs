@@ -1,4 +1,5 @@
-use super::{escape, span, word, bracket, atom, precedence};
+use super::{escape, span, keyword, word, bracket, atom, precedence};
+use keyword::{Keyword};
 use precedence::{Precedence};
 
 /* TODO: impl `Part` for common operators:
@@ -37,7 +38,7 @@ pub enum Expr {
     Round(Round),
 
     /// A keyword operator applied to zero, one or two operands.
-    Op(Option<Box<Expr>>, word::Keyword, Option<Box<Expr>>),
+    Op(Option<Box<Expr>>, Keyword, Option<Box<Expr>>),
 
     /// Field access.
     Field(Box<Expr>, word::Alphanumeric),
@@ -50,7 +51,7 @@ pub enum Expr {
 #[derive(Debug, Clone)]
 pub struct Waiting {
     left: Option<Box<Expr>>,
-    op: word::Keyword,
+    op: Keyword,
     right: Precedence,
 }
 

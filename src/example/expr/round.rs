@@ -10,7 +10,7 @@
 
 use std::mem::{replace};
 use crate::{E, Parse, Push as P, Flush};
-use super::{escape, span, word, bracket, atom, Expr};
+use super::{escape, span, keyword, word, bracket, atom, Expr};
 
 pub const INVALID: E = "Expected a comma-separated list of expressions";
 pub const MISSING_COMMA: E = "Expressions must be comma-separated";
@@ -114,9 +114,9 @@ pub trait Reject {}
 impl Reject for escape::Sequence {}
 impl Reject for span::CharLiteral {}
 impl Reject for span::StringLiteral {}
+impl Reject for keyword::Keyword {}
 impl Reject for word::Alphanumeric {}
 impl Reject for word::Symbolic {}
-impl Reject for word::Keyword {}
 impl Reject for atom::Field {}
 impl Reject for atom::Dots {}
 

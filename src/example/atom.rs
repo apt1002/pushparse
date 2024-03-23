@@ -12,7 +12,7 @@
 //!   passed on unchanged.
 
 use crate::{E, Push as P, Spectate};
-use super::{escape, span, word, bracket};
+use super::{escape, span, keyword, word, bracket};
 use word::{Alphanumeric};
 use bracket::{Bracket};
 
@@ -108,7 +108,7 @@ impl<I: Push> Spectate<Parser<I>> for span::CharLiteral {}
 impl<I: Push> Spectate<Parser<I>> for span::StringLiteral {}
 impl<I: Push> Spectate<Parser<I>> for word::Whitespace {}
 impl<I: Push> Spectate<Parser<I>> for word::Symbolic {}
-impl<I: Push> Spectate<Parser<I>> for word::Keyword {}
+impl<I: Push> Spectate<Parser<I>> for keyword::Keyword {}
 
 // ----------------------------------------------------------------------------
 
@@ -141,8 +141,8 @@ mod tests {
         fn push(&mut self, _: word::Symbolic) { self.0.push(Sy); }
     }
 
-    impl P<word::Keyword> for Buffer {
-        fn push(&mut self, _: word::Keyword) { self.0.push(Kw); }
+    impl P<keyword::Keyword> for Buffer {
+        fn push(&mut self, _: keyword::Keyword) { self.0.push(Kw); }
     }
 
     impl P<Field> for Buffer {

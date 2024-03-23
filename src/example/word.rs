@@ -12,8 +12,9 @@
 //!   passed on unchanged.
 
 use std::collections::{HashMap};
-use crate::{E, Push as P, Spectate};
-use super::{escape, span};
+use crate::{E, Push as P, Wrap, Spectate};
+use super::{escape, span, keyword};
+use keyword::{Keyword};
 
 /// Represents a string of whitespace characters.
 #[derive(Debug, Clone, PartialEq)]
@@ -26,13 +27,6 @@ pub struct Alphanumeric(pub String);
 /// Represents a string of operator characters (`!$%&*+-/:<=>?@^|~`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Symbolic(pub String);
-
-/// Represents a keyword of the language.
-///
-/// Keywords must be entirely alphanumeric or entirely operator characters.
-/// The `usize` is an index into the [`Iterator`] passed to [`Parser::new()`].
-#[derive(Debug, Clone, PartialEq)]
-pub struct Keyword(pub usize);
 
 // ----------------------------------------------------------------------------
 
@@ -91,9 +85,18 @@ impl<I: Push> Parser<I> {
             self.inner.push(to_w(s));
         }
     }
+
+    fn classify(token: char) -> State {
+        match token {
+            ' ' | '\t' | '\n' | '\r' => State::Whitespace,
+            '_' | '0'..='9' | 'A'..='Z' | 'a'..='z' => State::Alphanumeric,
+            '!' | '$' | '%' | '&' | '*' | '+' | '-' | '/' | ':' | '<' | '=' | '>' | '?' | '@' | '^' | '|' | '~' => State::Symbolic,
+            _ => State::Home,
+        }
+    }
 }
 
-impl<I: Push> crate::Wrap for Parser<I> {
+impl<I: Push> Wrap for Parser<I> {
     type Inner = I;
 
     fn inner(&mut self) -> &mut Self::Inner { &mut self.inner }
@@ -123,12 +126,7 @@ impl<I: Push> crate::Wrap for Parser<I> {
 impl<I: Push> crate::MaybePush<char> for Parser<I> {
     fn maybe_push(&mut self, token: char) -> Option<char> {
         assert_eq!(self.state == State::Home, self.buffer.len() == 0);
-        let new_state = match token {
-            ' ' | '\t' | '\n' | '\r' => State::Whitespace,
-            '_' | '0'..='9' | 'A'..='Z' | 'a'..='z' => State::Alphanumeric,
-            '!' | '$' | '%' | '&' | '*' | '+' | '-' | '/' | ':' | '<' | '=' | '>' | '?' | '@' | '^' | '|' | '~' => State::Symbolic,
-            _ => State::Home,
-        };
+        let new_state = Self::classify(token);
         match (self.state == State::Home, new_state == self.state) {
             (false, false) => {
                 // We cannot continue the word.

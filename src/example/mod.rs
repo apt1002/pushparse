@@ -26,6 +26,8 @@ pub mod escape;
 
 pub mod span;
 
+pub mod keyword;
+
 pub mod word;
 
 pub mod bracket;
