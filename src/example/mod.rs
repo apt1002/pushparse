@@ -6,6 +6,7 @@
 //! - [`utf8`] - Turn UTF-8 byte sequences into characters.
 //! - [`escape`] - Recognise escape sequences such as `\n` and `\u000A`.
 //! - [`span`] - Recognise C-style comments and string and character literals.
+//! - [`keyword`] - Enumerate the keywords recognised by a parser.
 //! - [`word`] - Recognise whitespace, alphanumeric and punctuation words, and
 //!   keywords.
 //! - [`bracket`] - Match brackets.

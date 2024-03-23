@@ -90,6 +90,8 @@ impl<I: Push> crate::MaybePush<Alphanumeric> for Parser<I> {
     }
 }
 
+impl<I: Push + keyword::Push> keyword::NoExtra for Parser<I> {}
+
 // ----------------------------------------------------------------------------
 
 impl<
@@ -108,7 +110,6 @@ impl<I: Push> Spectate<Parser<I>> for span::CharLiteral {}
 impl<I: Push> Spectate<Parser<I>> for span::StringLiteral {}
 impl<I: Push> Spectate<Parser<I>> for word::Whitespace {}
 impl<I: Push> Spectate<Parser<I>> for word::Symbolic {}
-impl<I: Push> Spectate<Parser<I>> for keyword::Keyword {}
 
 // ----------------------------------------------------------------------------
 
@@ -162,9 +163,18 @@ mod tests {
         fn flush(&mut self) -> Self::Output { self.0.drain(..).collect() }
     }
 
+    impl keyword::List for Buffer {
+        const NUM_KEYWORDS: usize = 1;
+        fn name(_: keyword::Keyword) -> &'static str { &"return" }
+    }
+
+    impl keyword::Push for Buffer {
+        type List = Self;
+    }
+
     fn check(input: &str, expected: &[Token]) {
         println!("input = {:}", input);
-        let mut parser = word::Parser::new(["return"], Parser::new(Buffer::default()));
+        let mut parser = word::Parser::new(Parser::new(Buffer::default()));
         for c in input.chars() { parser.push(c); println!("parser = {:x?}", parser); }
         let observed = parser.flush();
         assert_eq!(expected, &*observed);

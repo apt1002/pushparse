@@ -53,6 +53,12 @@ pub trait Push<B: Bracket>: P<char> + P<B> {
 // ----------------------------------------------------------------------------
 
 /// A parser that generates nested brackets of type `B`.
+///
+/// Each of the following traits will be implemented by `Self` if both `I` and
+/// `I::Parser` provide compatible implementations of it:
+/// - [`crate::Push<T>`] for any `T` that implements [`Spectator`].
+/// - [`Push<T>`] for any `T` that implements [`Bracket`].
+/// - [`keyword::Push`]
 #[derive(Debug, Clone)]
 pub struct Parser<B: Bracket, I: Push<B>> {
     /// The output stream for the top level, i.e. outside all `B`s.
@@ -161,6 +167,15 @@ impl<
 {
     type Parser = Parser<B, <I as Push<T>>::Parser>;
     fn new_parser(&self) -> Self::Parser { Parser::new(<I as Push<T>>::new_parser(&self.top_inner)) }
+}
+
+impl<
+    B: Bracket,
+    I: Push<B> + keyword::Push,
+> keyword::Push for Parser<B, I> where
+    <I as Push<B>>::Parser: keyword::Push<List=I::List>,
+{
+    type List = <I as keyword::Push>::List;
 }
 
 // ----------------------------------------------------------------------------
