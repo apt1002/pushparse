@@ -23,7 +23,7 @@ pub struct Parser<I: P<char>> {
     inner: I,
 
     /// A partial scalar value read from previous bytes.
-    /// Must be zero if [`count`] is zero.
+    /// Must be zero if [`self.count`] is zero.
     bits: u32,
 
     /// The number of continuation bytes needed to complete the character.

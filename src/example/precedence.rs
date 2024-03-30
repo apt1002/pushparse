@@ -74,10 +74,10 @@ pub struct Parser<X: Expr, I: P<X>> {
     /// The output stream.
     inner: I,
 
-    /// A stack of partial [`X`]s that are waiting for a right operand.
+    /// A stack of partial `X`s that are waiting for a right operand.
     stack: Vec<X::Waiting>,
 
-    /// An [`X`] that is waiting for infix and postfix operators.
+    /// An `X` that is waiting for infix and postfix operators.
     expr: Option<X>,
 }
 
