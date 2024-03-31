@@ -11,7 +11,7 @@
 //!   passed on unchanged.
 
 use std::fmt::{Debug};
-use crate::{E, Push as P, Parse, Flush};
+use crate::{E, Push as P, Wrap, MaybePush, Spectate};
 use super::{escape, span, keyword, word, bracket};
 use bracket::{Bracket};
 
@@ -107,6 +107,12 @@ impl<X: Expr, I: P<X>> Parser<X, I> {
         }
         expr
     }
+}
+
+impl<X: Expr, I: P<X>> Wrap for Parser<X, I> {
+    type Inner = I;
+
+    fn inner(&mut self) -> &mut Self::Inner { &mut self.inner }
 
     fn partial_flush(&mut self) {
         if let Some(expr) = self.flush_up_to(Precedence(u8::MAX)) {
@@ -114,40 +120,25 @@ impl<X: Expr, I: P<X>> Parser<X, I> {
         }
     }
 
-    pub fn spectate<T>(&mut self, token: T) where I: P<T> {
-        self.partial_flush();
-        self.inner.push(token);
-    }
+    fn partial_reset(&mut self) { self.partial_flush(); }
+
+    const MISSING: E = "Precedence: should not happen";
 }
 
-// TODO: Implement `Wrap` instead.
-impl<X: Expr, I: P<X>> Parse for Parser<X, I> {
-    fn error(&mut self, error: E) {
-        self.partial_flush();
-        self.inner.error(error);
-    }
-}
-
-impl<X: Expr, I: P<X> + Flush> Flush for Parser<X, I> {
-    type Output = I::Output;
-    fn flush(&mut self) -> Self::Output {
-        self.partial_flush();
-        self.inner.flush()
-    }
-}
-
-impl<X: Expr, I: P<X>> P<Atom<X>> for Parser<X, I> {
-    fn push(&mut self, token: Atom<X>) {
+impl<X: Expr, I: P<X>> MaybePush<Atom<X>> for Parser<X, I> {
+    fn maybe_push(&mut self, token: Atom<X>) -> Option<Atom<X>> {
         if self.has_expr() { self.partial_flush(); }
         self.expr = Some(token.0);
+        None
     }
     
 }
 
-impl<X: Expr, I: P<X>> P<Prefix<X>> for Parser<X, I> {
-    fn push(&mut self, token: Prefix<X>) {
+impl<X: Expr, I: P<X>> MaybePush<Prefix<X>> for Parser<X, I> {
+    fn maybe_push(&mut self, token: Prefix<X>) -> Option<Prefix<X>> {
         if self.has_expr() { self.partial_flush(); }
         self.stack.push(token.0);
+        None
     }
     
 }
@@ -156,10 +147,11 @@ impl<
     X: Expr,
     I: P<X>,
     F: FnOnce(Option<X>) -> X,
-> P<Postfix<F>> for Parser<X, I> {
-    fn push(&mut self, token: Postfix<F>) {
+> MaybePush<Postfix<F>> for Parser<X, I> {
+    fn maybe_push(&mut self, token: Postfix<F>) -> Option<Postfix<F>> {
         let expr = self.flush_up_to(token.left);
         self.expr = Some((token.apply)(expr));
+        None
     }
 }
 
@@ -167,10 +159,11 @@ impl<
     X: Expr,
     I: P<X>,
     F: FnOnce(Option<X>) -> X::Waiting,
-> P<Infix<F>> for Parser<X, I> {
-    fn push(&mut self, token: Infix<F>) {
+> MaybePush<Infix<F>> for Parser<X, I> {
+    fn maybe_push(&mut self, token: Infix<F>) -> Option<Infix<F>> {
         let expr = self.flush_up_to(token.left);
         self.stack.push((token.apply)(expr));
+        None
     }
 }
 
@@ -187,20 +180,12 @@ impl<
 
 // ----------------------------------------------------------------------------
 
-/// A token type ignored by [`Parser`].
-// TODO: Replace with `crate::Spectate`.
-pub trait Spectator {}
-
-impl Spectator for char {}
-impl Spectator for escape::Sequence {}
-impl Spectator for span::Comment {}
-impl Spectator for span::CharLiteral {}
-impl Spectator for span::StringLiteral {}
-impl Spectator for keyword::Keyword {}
-impl Spectator for word::Alphanumeric {}
-impl Spectator for word::Symbolic {}
-impl<B: Bracket> Spectator for B {}
-
-impl<T: Spectator, X: Expr, I: P<X> + P<T>> P<T> for Parser<X, I> {
-    fn push(&mut self, token: T) { self.spectate(token); }
-}
+impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for char {}
+impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for escape::Sequence {}
+impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for span::Comment {}
+impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for span::CharLiteral {}
+impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for span::StringLiteral {}
+impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for keyword::Keyword {}
+impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for word::Alphanumeric {}
+impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for word::Symbolic {}
+impl<B: Bracket, X: Expr, I: P<X>> Spectate<Parser<X, I>> for B {}
