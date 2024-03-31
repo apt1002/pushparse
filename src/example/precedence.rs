@@ -12,7 +12,7 @@
 
 use std::fmt::{Debug};
 use crate::{E, Push as P, Parse, Flush};
-use super::{escape, span, keyword, word, bracket, atom};
+use super::{escape, span, keyword, word, bracket};
 use bracket::{Bracket};
 
 // ----------------------------------------------------------------------------
@@ -199,8 +199,6 @@ impl Spectator for span::StringLiteral {}
 impl Spectator for keyword::Keyword {}
 impl Spectator for word::Alphanumeric {}
 impl Spectator for word::Symbolic {}
-impl Spectator for atom::Field {}
-impl Spectator for atom::Dots {}
 impl<B: Bracket> Spectator for B {}
 
 impl<T: Spectator, X: Expr, I: P<X> + P<T>> P<T> for Parser<X, I> {

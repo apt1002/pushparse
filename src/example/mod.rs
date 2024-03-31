@@ -33,8 +33,6 @@ pub mod word;
 
 pub mod bracket;
 
-pub mod atom;
-
 pub mod precedence;
 
 pub mod expr;

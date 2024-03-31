@@ -1,4 +1,4 @@
-use super::{escape, span, keyword, word, bracket, atom, precedence};
+use super::{escape, span, keyword, word, bracket, precedence};
 use keyword::{Keyword};
 use precedence::{Precedence};
 
@@ -19,6 +19,8 @@ use precedence::{Precedence};
 
 pub mod round;
 pub use round::{Round};
+
+pub mod atom;
 
 // ----------------------------------------------------------------------------
 
