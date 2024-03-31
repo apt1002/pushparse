@@ -68,13 +68,13 @@ pub trait Extra: Wrap where Self::Inner: Push {
     /// but not by [`Wrap::Inner`].
     const EXTRA: &'static [Self::Info];
 
+    /// Returns the [`str`] representation of a relevant keyword.
+    fn name(info: &Self::Info) -> &str;
+
     /// If `token` is relevant to `Self`, returns its [`Self::Info`].
     fn keyword_info(token: Keyword) -> Option<&'static <Self as Extra>::Info> {
         token.0.checked_sub(<Self::Inner as Push>::List::NUM_KEYWORDS).map(|index| &Self::EXTRA[index])
     }
-
-    /// Returns the [`str`] representation of a relevant keyword.
-    fn name(info: &Self::Info) -> &str;
 
     /// If `token` is a relevant keyword, calls [`MaybePush::maybe_push()`]
     /// passing the corresponding [`Self::Info`], otherwise calls

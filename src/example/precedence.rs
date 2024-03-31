@@ -20,7 +20,7 @@ use bracket::{Bracket};
 /// Represents the binding precedence of an operator.
 /// No left-`Precedence` is ever equal to a right-`Precedence`.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Precedence(u8);
+pub struct Precedence(pub u8);
 
 /// Represents an expression of type `X` that is missing a right operand.
 pub trait Waiting<X>: Debug + Clone {
@@ -178,6 +178,8 @@ impl<
     fn new_parser(&self) -> Self::Parser { Parser::new(self.inner.new_parser()) }
 }
 
+impl<X: Expr, I: P<X> + keyword::Push> keyword::NoExtra for Parser<X, I> {}
+
 // ----------------------------------------------------------------------------
 
 impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for char {}
@@ -185,7 +187,7 @@ impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for escape::Sequence {}
 impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for span::Comment {}
 impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for span::CharLiteral {}
 impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for span::StringLiteral {}
-impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for keyword::Keyword {}
+impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for word::Whitespace {}
 impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for word::Alphanumeric {}
 impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for word::Symbolic {}
 impl<B: Bracket, X: Expr, I: P<X>> Spectate<Parser<X, I>> for B {}
