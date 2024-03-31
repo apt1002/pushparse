@@ -11,7 +11,7 @@
 use std::marker::{PhantomData};
 use std::mem::{replace};
 use crate::{E, Parse, Push as P, Flush};
-use super::{escape, span, keyword, word, bracket, atom, Expr};
+use super::{escape, span, keyword, word, bracket, Expr};
 
 pub const INVALID: E = "Expected a comma-separated list of expressions";
 pub const MISSING_COMMA: E = "Expressions must be comma-separated";
@@ -23,7 +23,7 @@ pub const TWO_COMMAS: E = "Two commas in a row";
 ///
 /// The first error ([`E`]) in each `Round` truncates the contents,
 /// except that `expecting_comma` correctly describes the final token.
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct Round {
     /// The [`Expr`] tokens up to the first error, if any.
     pub exprs: Box<[Expr]>,
@@ -131,8 +131,6 @@ impl Reject for span::StringLiteral {}
 impl Reject for keyword::Keyword {}
 impl Reject for word::Alphanumeric {}
 impl Reject for word::Symbolic {}
-impl Reject for atom::Field {}
-impl Reject for atom::Dots {}
 
 impl<L, T: Reject> P<T> for Buffer<L> {
     fn push(&mut self, _: T) { self.error(INVALID); }
