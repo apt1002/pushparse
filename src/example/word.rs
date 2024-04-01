@@ -107,7 +107,7 @@ impl<I: Push> Parser<I> {
         match token {
             ' ' | '\t' | '\n' | '\r' => State::Whitespace,
             '_' | '0'..='9' | 'A'..='Z' | 'a'..='z' => State::Alphanumeric,
-            '!' | '$' | '%' | '&' | '*' | '+' | '-' | '/' | ':' | '<' | '=' | '>' | '?' | '@' | '^' | '|' | '~' => State::Symbolic,
+            '!' | '$' | '%' | '&' | '*' | '+' | '-' | '.' | '/' | ':' | '<' | '=' | '>' | '?' | '@' | '^' | '|' | '~' => State::Symbolic,
             _ => State::Home,
         }
     }
@@ -246,8 +246,8 @@ mod tests {
 
     #[test]
     fn ascii() {
-        check("#(),.;[]`{}", &[
-            Char('#'), Char('('), Char(')'), Char(','), Char('.'), Char(';'),
+        check("#(),;[]`{}", &[
+            Char('#'), Char('('), Char(')'), Char(','), Char(';'),
             Char('['), Char(']'), Char('`'), Char('{'), Char('}'),
         ]);
     }
@@ -268,7 +268,7 @@ mod tests {
 
     #[test]
     fn operator() {
-        check("[!$%&*+-/:<=>?@^|~]", &[Char('['), Op("!$%&*+-/:<=>?@^|~".into()), Char(']')]);
+        check("[!$%&*+-./:<=>?@^|~]", &[Char('['), Op("!$%&*+-./:<=>?@^|~".into()), Char(']')]);
         check("[+=;<>;*/]", &[
             Char('['), Op("+=".into()), Char(';'), Op("<>".into()), Char(';'), Op("*/".into()), Char(']'),
         ]);

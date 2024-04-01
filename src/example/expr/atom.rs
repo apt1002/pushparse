@@ -182,7 +182,7 @@ mod tests {
 
     #[test]
     fn ascii() {
-        check(",.;", &[Char(','), Char('.'), Char(';')]);
+        check(",.;", &[Char(','), Sy, Char(';')]);
     }
 
     #[test]
@@ -193,26 +193,26 @@ mod tests {
     #[test]
     fn dots() {
         check("", &[]);
-        check(".", &[Char('.')]);
-        check("..", &[D(2)]);
-        check("...", &[D(3)]);
-        check(". .", &[Char('.'), Ws, Char('.')]);
-        check(".. .", &[D(2), Ws, Char('.')]);
-        check(". ..", &[Char('.'), Ws, D(2)]);
-        check(".. ..", &[D(2), Ws, D(2)]);
+        check(".", &[Sy]);
+        check("..", &[Sy]);
+        check("...", &[Sy]);
+        check(". .", &[Sy, Ws, Sy]);
+        check(".. .", &[Sy, Ws, Sy]);
+        check(". ..", &[Sy, Ws, Sy]);
+        check(".. ..", &[Sy, Ws, Sy]);
     }
 
     #[test]
     fn field() {
         check("A", &[An("A".into())]);
-        check(".A", &[F("A".into())]);
-        check(". A", &[Char('.'), Ws, An("A".into())]);
-        check("..A", &[D(2), An("A".into())]);
-        check(". .A", &[Char('.'), Ws, F("A".into())]);
-        check(".. A", &[D(2), Ws, An("A".into())]);
-        check("A.B", &[An("A".into()), F("B".into())]);
-        check("A .B", &[An("A".into()), Ws, F("B".into())]);
-        check("A. B", &[An("A".into()), Char('.'), Ws, An("B".into())]);
-        check("A..B", &[An("A".into()), D(2), An("B".into())]);
+        check(".A", &[Sy, An("A".into())]);
+        check(". A", &[Sy, Ws, An("A".into())]);
+        check("..A", &[Sy, An("A".into())]);
+        check(". .A", &[Sy, Ws, Sy, An("A".into())]);
+        check(".. A", &[Sy, Ws, An("A".into())]);
+        check("A.B", &[An("A".into()), Sy, An("B".into())]);
+        check("A .B", &[An("A".into()), Ws, Sy, An("B".into())]);
+        check("A. B", &[An("A".into()), Sy, Ws, An("B".into())]);
+        check("A..B", &[An("A".into()), Sy, An("B".into())]);
     }
 }
