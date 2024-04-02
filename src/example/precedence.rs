@@ -13,6 +13,7 @@
 use std::fmt::{Debug};
 use crate::{E, Push as P, Wrap, MaybePush, Spectate};
 use super::{escape, span, keyword, word, bracket};
+use word::{Whitespace};
 use bracket::{Bracket};
 
 // ----------------------------------------------------------------------------
@@ -169,6 +170,13 @@ impl<
     }
 }
 
+impl<X: Expr, I: P<X> + P<Whitespace>> MaybePush<Whitespace> for Parser<X, I> {
+    fn maybe_push(&mut self, token: Whitespace) -> Option<Whitespace> {
+        if self.stack.len() == 0 && self.expr.is_none() { self.inner.push(token); }
+        None
+    }
+}
+
 impl<
     B: Bracket,
     X: Expr,
@@ -189,7 +197,6 @@ impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for escape::Sequence {}
 impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for span::Comment {}
 impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for span::CharLiteral {}
 impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for span::StringLiteral {}
-impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for word::Whitespace {}
 impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for word::Alphanumeric {}
 impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for word::Symbolic {}
 impl<B: Bracket, X: Expr, I: P<X>> Spectate<Parser<X, I>> for B {}
