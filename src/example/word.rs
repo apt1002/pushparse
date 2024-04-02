@@ -55,7 +55,7 @@ enum State {
 /// A parser that recognizes [`Whitespace`]s, [`Alphanumeric`]s and
 /// [`Symbolic`]s. Reserved words (alphanumeric or operators) are replaced with
 /// [`Keyword`]s.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Parser<I: Push> {
     /// All keywords of the language.
     keywords: HashMap<&'static str, usize>,
@@ -110,6 +110,16 @@ impl<I: Push> Parser<I> {
             '!' | '$' | '%' | '&' | '*' | '+' | '-' | '.' | '/' | ':' | '<' | '=' | '>' | '?' | '@' | '^' | '|' | '~' => State::Symbolic,
             _ => State::Home,
         }
+    }
+}
+
+impl<I: Push + std::fmt::Debug> std::fmt::Debug for Parser<I> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("word::Parser")
+            .field("inner", &self.inner)
+            .field("state", &self.state)
+            .field("buffer", &self.buffer)
+            .finish()
     }
 }
 
