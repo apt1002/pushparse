@@ -93,7 +93,7 @@ impl<X: Expr, I: P<X>> Parser<X, I> {
     /// than `left`, returns it.
     fn pop_if_higher(&mut self, left: Precedence) -> Option<X::Waiting> {
         if let Some(waiting) = self.stack.last() {
-            if waiting.right() > left { return self.stack.pop(); }
+            if waiting.right() >= left { return self.stack.pop(); }
         }
         None
     }
@@ -115,9 +115,11 @@ impl<X: Expr, I: P<X>> Wrap for Parser<X, I> {
     fn inner(&mut self) -> &mut Self::Inner { &mut self.inner }
 
     fn partial_flush(&mut self) {
-        if let Some(expr) = self.flush_up_to(Precedence(u8::MAX)) {
+        if let Some(expr) = self.flush_up_to(Precedence(u8::MIN)) {
             self.inner.push(expr);
         }
+        assert_eq!(self.stack.len(), 0);
+        assert!(self.expr.is_none());
     }
 
     fn partial_reset(&mut self) { self.partial_flush(); }
@@ -191,3 +193,121 @@ impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for word::Whitespace {}
 impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for word::Alphanumeric {}
 impl<X: Expr, I: P<X>> Spectate<Parser<X, I>> for word::Symbolic {}
 impl<B: Bracket, X: Expr, I: P<X>> Spectate<Parser<X, I>> for B {}
+
+// ----------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Flush};
+
+    fn or_q(s: Option<String>) -> String { s.unwrap_or_else(|| "?".into()) }
+
+    #[derive(Debug, Clone)]
+    pub struct Waiting {
+        left: Option<String>,
+        op: &'static str,
+        right: Precedence,
+    }
+
+    impl super::Waiting<String> for Waiting {
+        fn right(&self) -> Precedence { self.right }
+
+        fn apply(self, right: Option<String>) -> String {
+            format!("({} {} {})", or_q(self.left), self.op, or_q(right))
+        }
+    }
+
+    impl Expr for String {
+        type Waiting = Waiting;
+    }
+
+    type Me = Parser<String, crate::Buffer<String>>;
+
+    impl Me {
+        fn name(&mut self, name: &str) {
+            self.push(Atom(String::from(name)));
+        }
+
+        fn minus(&mut self) {
+            self.push(Prefix(Waiting {left: None, op: "-", right: Precedence(4)}));
+        }
+
+        fn add(&mut self) {
+            self.push(Infix {
+                left: Precedence(1),
+                apply: |e| Waiting {left: e, op: "+", right: Precedence(0)},
+            });
+        }
+
+        fn mul(&mut self) {
+            self.push(Infix {
+                left: Precedence(3),
+                apply: |e| Waiting {left: e, op: "*", right: Precedence(2)},
+            });
+        }
+
+        fn bang(&mut self) {
+            self.push(Postfix {
+                left: Precedence(5),
+                apply: |e| format!("{}!", or_q(e)),
+            });
+        }
+    }
+
+    fn check(callback: impl FnOnce(&mut Me), expected: &[&str]) {
+        let mut me = Me::new(Default::default());
+        callback(&mut me);
+        let output = me.flush();
+        println!("output = {:?}", output);
+        for (x, y) in output.iter().zip(expected) {
+            assert_eq!(x, &Ok(String::from(*y)));
+        }
+    }
+
+    #[test]
+    fn name() {
+        check(|me| {
+            me.name("a");
+        }, &[
+            "a",
+        ]);
+    }
+
+    #[test]
+    fn minus() {
+        check(|me| {
+            me.minus();
+            println!("{:?}", me);
+            me.name("a");
+            println!("{:?}", me);
+        }, &[
+            "(? - a)",
+        ]);
+    }
+
+    #[test]
+    fn bang() {
+        check(|me| {
+            me.name("c");
+            me.bang();
+        }, &[
+            "c!",
+        ]);
+    }
+
+    #[test]
+    fn all() {
+        check(|me| {
+            me.minus();
+            me.name("a");
+            me.add();
+            me.name("b");
+            me.mul();
+            me.name("c");
+            me.bang();
+        }, &[
+            "((? - a) + (b * c!))",
+        ]);
+    }
+}
