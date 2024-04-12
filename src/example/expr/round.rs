@@ -34,6 +34,13 @@ pub struct Round {
     pub has_trailing_comma: bool,
 }
 
+impl Round {
+    /// Mostly useful for debugging.
+    pub fn new(exprs: impl IntoIterator<Item=Expr>) -> Self {
+        Self {exprs: exprs.into_iter().collect(), error: None, has_trailing_comma: false}
+    }
+}
+
 impl bracket::Bracket for Round {
     const OPEN: char = '(';
     const CLOSE: char = ')';

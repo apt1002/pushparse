@@ -8,10 +8,11 @@
 //!   parser that implements [`super::Push`].
 
 use crate::{E, Parse as _, Push as P, Wrap, MaybePush, Spectate};
-use super::{escape, span, word, bracket, precedence, Round, Op, Expr, Waiting, Push};
+use super::{escape, span, word, bracket, precedence, round, Op, Expr, Waiting, Push};
 use word::{Alphanumeric, Keyword};
 use bracket::{Bracket};
 use precedence::{Precedence, Atom, Prefix, Postfix, Infix};
+use round::{Round};
 
 /// Error message for a dot appearing on its own.
 pub const SPURIOUS_DOT: E = "Syntax error: '.' must not appear on its own";
@@ -274,6 +275,11 @@ impl<I: Push> MaybePush<Round> for Parser<I> {
     }
 }
 
+impl<I: Push> bracket::Push<Round> for Parser<I> {
+    type Parser = Parser<round::Buffer>;
+    fn new_parser(&self) -> Self::Parser { Parser::new(precedence::Parser::new(Default::default())) }
+}
+
 // ----------------------------------------------------------------------------
 
 impl<
@@ -342,7 +348,7 @@ mod tests {
 
     fn check(input: &str, expected: &[Token]) {
         println!("input = {:}", input);
-        let parser = Parser::new(precedence::Parser::new(Buffer::default()));
+        let parser = bracket::Parser::new(Parser::new(precedence::Parser::new(Buffer::default())));
         let mut parser = word::Parser::new(
             parser,
             [Keyword(&"return")].into_iter().chain(
@@ -375,6 +381,11 @@ mod tests {
     ) -> Expr {
         let e = e.into().map(Box::new);
         Expr::Field(e, f.into())
+    }
+
+    /// Construct an [`Expr`] representing `exprs` in round brackets.
+    fn group(exprs: impl IntoIterator<Item=Expr>) -> Expr {
+        Expr::Round(Round::new(exprs))
     }
 
     /// Construct an [`Expr`] representing `op` with the specified operands.
@@ -415,5 +426,14 @@ mod tests {
         check("A .B", &[Ex(field(name("A"), "B"))]);
         check("A. B", &[Ex(name("A")), E_DOT, Ws, Ex(name("B"))]);
         check("A..B", &[Ex(op(name("A"), Op::Exclusive, name("B")))]);
+    }
+
+    #[test]
+    fn rounds() {
+        check("(A)", &[Ex(group([name("A")]))]);
+        check("(a: Int, b)", &[Ex(group([
+            op(name("a"), Op::Cast, name("Int")),
+            name("b"),
+        ]))]);
     }
 }
