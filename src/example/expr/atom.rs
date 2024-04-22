@@ -8,9 +8,8 @@
 //!   parser that implements [`super::Push`].
 
 use crate::{E, Parse as _, Push as P, Wrap, MaybePush, Spectate};
-use super::{escape, span, keyword, word, bracket, precedence, Round, Op, Expr, Waiting, Push};
-use keyword::{Keyword, Extra};
-use word::{Alphanumeric};
+use super::{escape, span, word, bracket, precedence, Round, Op, Expr, Waiting, Push};
+use word::{Alphanumeric, Keyword};
 use bracket::{Bracket};
 use precedence::{Precedence, Atom, Prefix, Postfix, Infix};
 
@@ -64,6 +63,10 @@ pub struct Info {
     without_left: Option<(Op, Option<Precedence>)>,
 }
 
+impl AsRef<str> for Info {
+    fn as_ref(&self) -> &str { &self.name }
+}
+
 impl Info {
     /// Make an Info describing an operator that is infix, prefix, or both.
     pub const fn new(
@@ -88,7 +91,7 @@ impl Info {
     }
 }
 
-const ALL_INFOS: &'static [Info] = &[
+pub const ALL_INFOS: &'static [Info] = &[
     // Special keywords.
     Info::new(".", None, None),
     Info::new("fn", None, None),
@@ -123,10 +126,10 @@ const ALL_INFOS: &'static [Info] = &[
 ];
 
 /// The [`Precedence`] of the member operator `expr.name`.
-pub const FIELD: Precedence = rp(13);
+const FIELD: Precedence = rp(13);
 
 /// The [`Precedence`] of the call operator `expr(...)`.
-pub const CALL: Precedence = rp(13);
+const CALL: Precedence = rp(13);
 
 // ----------------------------------------------------------------------------
 
@@ -232,7 +235,13 @@ impl<I: Push> MaybePush<&'static Info> for Parser<I> {
 impl<I: Push> MaybePush<Keyword> for Parser<I> {
     /// As recommended by [`Extra`].
     fn maybe_push(&mut self, token: Keyword) -> Option<Keyword> {
-        self.push_keyword(token)
+        if let Some(info) = token.try_borrow::<Info>() {
+            self.push(info);
+        } else {
+            self.partial_flush();
+            self.inner().push(token);
+        }
+        None
     }
 }
 
@@ -263,15 +272,6 @@ impl<I: Push> MaybePush<Round> for Parser<I> {
         }
         None
     }
-}
-
-impl<I: Push> Extra for Parser<I> {
-    type Info = Info;
-
-    const EXTRA: &'static [Self::Info] = ALL_INFOS;
-
-    /// Returns the [`str`] representation of a relevant keyword.
-    fn name(info: &Self::Info) -> &str { info.name }
 }
 
 // ----------------------------------------------------------------------------
@@ -323,11 +323,8 @@ mod tests {
         fn push(&mut self, token: word::Symbolic) { self.0.push(Sy(token.0)); }
     }
 
-    impl P<keyword::Keyword> for Buffer {
-        fn push(&mut self, token: keyword::Keyword) {
-            let name = <<Parser<Buffer> as keyword::Push>::List as keyword::List>::name(token);
-            self.0.push(Kw(name));
-        }
+    impl P<word::Keyword> for Buffer {
+        fn push(&mut self, token: word::Keyword) { self.0.push(Kw(token.name())); }
     }
 
     impl P<Expr> for Buffer {
@@ -343,18 +340,15 @@ mod tests {
         fn flush(&mut self) -> Self::Output { self.0.drain(..).collect() }
     }
 
-    impl keyword::List for Buffer {
-        const NUM_KEYWORDS: usize = 1;
-        fn name(_: keyword::Keyword) -> &'static str { &"return" }
-    }
-
-    impl keyword::Push for Buffer {
-        type List = Self;
-    }
-
     fn check(input: &str, expected: &[Token]) {
         println!("input = {:}", input);
-        let mut parser = word::Parser::new(Parser::new(precedence::Parser::new(Buffer::default())));
+        let parser = Parser::new(precedence::Parser::new(Buffer::default()));
+        let mut parser = word::Parser::new(
+            parser,
+            [Keyword(&"return")].into_iter().chain(
+                ALL_INFOS.iter().map(|info| Keyword(info))
+            ),
+        );
         for c in input.chars() { parser.push(c); println!("parser = {:x?}", parser); }
         let observed = parser.flush();
         assert_eq!(expected, &*observed);

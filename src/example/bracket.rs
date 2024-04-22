@@ -15,8 +15,7 @@
 //!   of the brackets.
 
 use crate::{E, Push as P, Parse, Flush};
-use super::{escape, span, keyword, word};
-use keyword::{Keyword};
+use super::{escape, span, word};
 
 pub const MISSING_OPEN: E = "Missing open bracket";
 pub const MISSING_CLOSE: E = "Missing close bracket";
@@ -58,7 +57,6 @@ pub trait Push<B: Bracket>: P<char> + P<B> {
 /// `I::Parser` provide compatible implementations of it:
 /// - [`crate::Push<T>`] for any `T` that implements [`Spectator`].
 /// - [`Push<T>`] for any `T` that implements [`Bracket`].
-/// - [`keyword::Push`]
 #[derive(Debug, Clone)]
 pub struct Parser<B: Bracket, I: Push<B>> {
     /// The output stream for the top level, i.e. outside all `B`s.
@@ -142,10 +140,10 @@ impl Spectator for escape::Sequence {}
 impl Spectator for span::Comment {}
 impl Spectator for span::CharLiteral {}
 impl Spectator for span::StringLiteral {}
-impl Spectator for Keyword {}
 impl Spectator for word::Whitespace {}
 impl Spectator for word::Alphanumeric {}
 impl Spectator for word::Symbolic {}
+impl Spectator for word::Keyword {}
 
 impl<
     T: Spectator,
@@ -167,15 +165,6 @@ impl<
 {
     type Parser = Parser<B, <I as Push<T>>::Parser>;
     fn new_parser(&self) -> Self::Parser { Parser::new(<I as Push<T>>::new_parser(&self.top_inner)) }
-}
-
-impl<
-    B: Bracket,
-    I: Push<B> + keyword::Push,
-> keyword::Push for Parser<B, I> where
-    <I as Push<B>>::Parser: keyword::Push<List=I::List>,
-{
-    type List = <I as keyword::Push>::List;
 }
 
 // ----------------------------------------------------------------------------
